@@ -13,14 +13,13 @@ from pathlib import Path
 from typing import Any, Optional
 
 import requests
-
-from constant import BilibiliAPI as APIConst, HttpHeader
+from constant import BilibiliAPI as APIConst
+from constant import HttpHeader
 from database import DEFAULT_DB_PATH, LEGACY_OWNER_USER_ID, get_connection, init_db
 from error_code import APIError
 from models import BiliUserProfile
 from monitoring import record_bilibili_request
 from track_service import normalize_user_profile
-
 
 BILI_PROVIDER = "bilibili"
 QR_EXPIRES_SECONDS = 180
@@ -173,7 +172,11 @@ class AuthService:
         self.session.headers.update(HttpHeader.default_headers())
         init_db(self.db_path)
 
-        key_path = Path(self.db_path).with_suffix(".auth.key")
+        from database import mysql_target
+        configured_key = os.getenv("AUTH_KEY_PATH", "").strip()
+        key_path = Path(configured_key) if configured_key else (
+            DEFAULT_DB_PATH if mysql_target(self.db_path) else Path(self.db_path)
+        ).with_suffix(".auth.key")
         self.cipher = LocalCookieCipher(key_path)
 
     def qr_login_enabled(self) -> bool:
@@ -272,7 +275,8 @@ class AuthService:
         user = None
         if cookie_header and refresh:
             user = self._refresh_profile(cookie_header=cookie_header)
-            self._save_auth(cookie_header, self._decrypt_refresh_token(row), user)
+            self._save_auth(cookie_header, self._decrypt_refresh_token(row), user,
+                            expected_cookie=row["cookie_encrypted"])
         elif row and row["user_mid"]:
             user = BiliUserProfile(
                 mid=int(row["user_mid"]),
@@ -288,13 +292,14 @@ class AuthService:
         }
 
     def get_profile(self, refresh: bool = True) -> dict[str, Any]:
-        cookie_header = self.get_cookie_header()
+        row = self._auth_row()
+        cookie_header = self.cipher.decrypt(row["cookie_encrypted"]) if row else None
         if not cookie_header:
             raise APIError.auth_required("Bilibili login is required")
         user = self._refresh_profile(cookie_header=cookie_header) if refresh else None
         if user:
-            row = self._auth_row()
-            self._save_auth(cookie_header, self._decrypt_refresh_token(row), user)
+            self._save_auth(cookie_header, self._decrypt_refresh_token(row), user,
+                            expected_cookie=row["cookie_encrypted"])
             return user.to_dict()
         status = self.get_status(refresh=False)
         if not status["user"]:
@@ -309,6 +314,10 @@ class AuthService:
 
     def logout(self) -> dict[str, Any]:
         with get_connection(self.db_path) as conn:
+            from database import begin_write
+            begin_write(conn, namespace="bili-binding", key=self.user_id)
+            conn.execute("UPDATE bili_binding_epochs SET active=0,generation=generation+1,updated_at=? WHERE user_id=?",
+                         (time.time(), self.user_id))
             cursor = conn.execute(
                 "DELETE FROM bili_accounts WHERE user_id = ? AND provider = ?",
                 (self.user_id, BILI_PROVIDER),
@@ -332,11 +341,33 @@ class AuthService:
         cookie_header: str,
         refresh_token: Optional[str],
         user: BiliUserProfile,
+        *, expected_cookie: str | None = None,
     ) -> None:
         now = utc_now()
         encrypted_cookie = self.cipher.encrypt(cookie_header)
         encrypted_refresh_token = self.cipher.encrypt(str(refresh_token)) if refresh_token else None
         with get_connection(self.db_path) as conn:
+            from database import begin_write
+            begin_write(conn, namespace="bili-binding", key=self.user_id)
+            if expected_cookie is not None:
+                current = conn.execute("SELECT cookie_encrypted,user_mid FROM bili_accounts WHERE user_id=?", (self.user_id,)).fetchone()
+                if not current or current[0] != expected_cookie:
+                    if current and str(current[1]) == str(user.mid):
+                        return  # A newer credential for the same account wins over this refresh.
+                    raise APIError.conflict("Bilibili account changed during profile refresh")
+            binding = conn.execute("SELECT * FROM bili_binding_epochs WHERE user_id=?", (self.user_id,)).fetchone()
+            if binding is None:
+                conn.execute("INSERT INTO bili_binding_epochs(user_id,account_mid,generation,active,updated_at) VALUES (?,?,1,1,?)",
+                             (self.user_id, str(user.mid), time.time()))
+            elif not binding["active"] or binding["account_mid"] != str(user.mid):
+                conn.execute("UPDATE bili_binding_epochs SET account_mid=?,generation=generation+1,active=1,updated_at=? WHERE user_id=?",
+                             (str(user.mid), time.time(), self.user_id))
+            import json
+            epoch = conn.execute("SELECT generation FROM bili_binding_epochs WHERE user_id=?", (self.user_id,)).fetchone()[0]
+            binding_key = hashlib.sha256(json.dumps([self.user_id, str(user.mid), epoch],
+                ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            conn.execute("UPDATE bili_binding_epochs SET binding_key=? WHERE user_id=?",
+                         (binding_key, self.user_id))
             conn.execute(
                 """
                 INSERT INTO bili_accounts (

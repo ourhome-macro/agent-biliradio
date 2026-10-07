@@ -8,7 +8,7 @@ from pathlib import Path
 
 from database import DEFAULT_DB_PATH, init_db
 from durable_jobs import publish_pending
-from task_app import publish_job
+from job_transport import publish_job
 
 HEARTBEAT = Path("/tmp/radio-outbox-heartbeat")
 

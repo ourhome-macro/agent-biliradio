@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import math
 import json
+import math
 import os
 import threading
 import time
@@ -12,10 +12,8 @@ from typing import Any, Optional
 from urllib.parse import urlparse
 
 import requests
-
-from database import DEFAULT_DB_PATH, get_connection, init_db
+from database import DEFAULT_DB_PATH, begin_write, get_connection, init_db
 from error_code import APIError
-
 
 _RANGES = {
     "1d": timedelta(days=1),
@@ -277,7 +275,7 @@ class AdminService:
             raise APIError.validation_error("role must be user or admin")
         now = datetime.now(timezone.utc).isoformat()
         with get_connection(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="admin-membership", key="active-administrators")
             target = conn.execute(
                 "SELECT id, role, status FROM app_users WHERE id = ?",
                 (user_id,),
@@ -331,7 +329,7 @@ class AdminService:
     ) -> dict[str, Any]:
         now = datetime.now(timezone.utc).isoformat()
         with get_connection(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="admin-membership", key="active-administrators")
             row = conn.execute(
                 "SELECT id, role, status FROM app_users WHERE id = ?",
                 (user_id,),

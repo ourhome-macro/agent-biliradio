@@ -1,11 +1,12 @@
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
 from filelock import FileLock
 
-HEAD = "radio_002"
+HEAD = "radio_007"
 ROOT = Path(__file__).resolve().parent
 
 
@@ -17,9 +18,22 @@ def config(path: Path) -> Config:
 
 
 def current_revision(path: Path) -> str | None:
+    from database import mysql_target
+
+    target = mysql_target(path)
+    if target:
+        import sqlalchemy as sa
+        from mysql_storage.connection import engine_for
+
+        engine = engine_for(target)
+        if not sa.inspect(engine).has_table("alembic_version"):
+            return None
+        with engine.connect() as connection:
+            return connection.execute(sa.text("SELECT version_num FROM alembic_version")).scalar()
+    path = Path(path)
     if not path.exists():
         return None
-    with sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True) as conn:
+    with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as conn:
         if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='alembic_version'").fetchone():
             return None
         row = conn.execute("SELECT version_num FROM alembic_version").fetchone()
@@ -27,6 +41,15 @@ def current_revision(path: Path) -> str | None:
 
 
 def ensure_database(path: Path, *, migrate: bool) -> None:
+    from database import mysql_target
+
+    target = mysql_target(path)
+    if target:
+        from mysql_storage.connection import ensure_mysql
+
+        ensure_mysql(target, migrate=migrate)
+        return
+    path = Path(path)
     if current_revision(path) == HEAD:
         return
     if not migrate:

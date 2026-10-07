@@ -9,6 +9,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from database import begin_write
+
 
 def ensure_schema(conn) -> None:
     conn.executescript("""
@@ -48,11 +50,11 @@ def enqueue(
 ) -> str:
     # Acquire the writer before duplicate/capacity checks, including when the
     # caller has not written any business data yet.
-    if not conn.in_transaction:
-        conn.execute("BEGIN IMMEDIATE")
+    begin_write(conn, namespace="job-capacity", key=user_id)
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     digest = hashlib.sha256(raw.encode()).hexdigest()
     job_id = job_id or f"{kind}:{uuid4().hex}"
+    begin_write(conn, namespace="job", key=job_id)
     old = conn.execute("SELECT * FROM durable_jobs WHERE job_id=?", (job_id,)).fetchone()
     if old:
         if old["kind"] != kind or old["user_id"] != user_id or old["input_hash"] != digest:
@@ -66,11 +68,23 @@ def enqueue(
         raise ValueError("background task capacity exceeded; retry later")
     now = time.time()
     from agent_memory_runtime.telemetry import carrier
+
     conn.execute(
         """INSERT INTO durable_jobs
         (job_id,kind,user_id,lane,payload_json,input_hash,retry_safe,created_at,updated_at,trace_context)
         VALUES (?,?,?,?,?,?,?,?,?,?)""",
-        (job_id, kind, user_id, lane, raw, digest, int(retry_safe), now, now, json.dumps(carrier())),
+        (
+            job_id,
+            kind,
+            user_id,
+            lane,
+            raw,
+            digest,
+            int(retry_safe),
+            now,
+            now,
+            json.dumps(carrier()),
+        ),
     )
     return job_id
 
@@ -85,9 +99,9 @@ def enqueue_behavior(
     payload: dict | None = None,
     event_id: str | None = None,
 ) -> str | None:
-    from rabbitmq_bus import rabbitmq_enabled
+    from job_transport import async_jobs_enabled
 
-    if not rabbitmq_enabled():
+    if not async_jobs_enabled():
         return None
     values = dict(payload or {})
     values.update(userId=user_id, event=event, scene=scene)
@@ -116,7 +130,7 @@ def enqueue_behavior(
 
 def claim(conn, job_id: str, *, now: float | None = None, lease_seconds: int = 330):
     now = time.time() if now is None else now
-    conn.execute("BEGIN IMMEDIATE")
+    begin_write(conn, namespace="job", key=job_id)
     row = conn.execute("SELECT * FROM durable_jobs WHERE job_id=?", (job_id,)).fetchone()
     if row is None or row["status"] in ("completed", "failed", "needs_reconciliation"):
         return None
@@ -139,6 +153,8 @@ def claim(conn, job_id: str, *, now: float | None = None, lease_seconds: int = 3
                 (now, job_id),
             )
             return None
+    if row["lane"]:
+        begin_write(conn, namespace="job-lane", key=row["lane"])
     if (
         row["lane"]
         and conn.execute(
@@ -146,7 +162,7 @@ def claim(conn, job_id: str, *, now: float | None = None, lease_seconds: int = 3
         WHERE lane=? AND job_id<>? AND (status IN ('running','needs_reconciliation')
         OR (status='queued' AND id < ?))
         LIMIT 1""",
-        (row["lane"], job_id, row["id"]),
+            (row["lane"], job_id, row["id"]),
         ).fetchone()
     ):
         return None
@@ -159,8 +175,10 @@ def claim(conn, job_id: str, *, now: float | None = None, lease_seconds: int = 3
     return dict(conn.execute("SELECT * FROM durable_jobs WHERE job_id=?", (job_id,)).fetchone())
 
 
-def finish(conn, job: dict, *, result: Any = None, error: Exception | None = None) -> None:
-    now = time.time()
+def finish(
+    conn, job: dict, *, result: Any = None, error: Exception | None = None, now: float | None = None
+) -> None:
+    now = time.time() if now is None else now
     status = "completed"
     if error:
         status = (
@@ -171,14 +189,15 @@ def finish(conn, job: dict, *, result: Any = None, error: Exception | None = Non
             else "needs_reconciliation"
         )
         from job_errors import JobPermanentFailure, JobReconciliationRequired
+
         if isinstance(error, JobReconciliationRequired):
-            status = 'needs_reconciliation'
+            status = "needs_reconciliation"
         elif isinstance(error, JobPermanentFailure):
-            status = 'failed'
+            status = "failed"
     conn.execute(
         """UPDATE durable_jobs SET status=?,result_json=?,error=?,lease_token=NULL,
         lease_until=0,next_publish_at=?,available_at=?,updated_at=?
-        WHERE job_id=? AND lease_token=?""",
+        WHERE job_id=? AND lease_token=? AND status='running' AND lease_until>?""",
         (
             status,
             json.dumps(result, ensure_ascii=False),
@@ -188,6 +207,7 @@ def finish(conn, job: dict, *, result: Any = None, error: Exception | None = Non
             now,
             job["job_id"],
             job["lease_token"],
+            now,
         ),
     )
 
@@ -209,11 +229,18 @@ def publish_pending(db_path, publisher, *, now: float | None = None) -> int:
 
     now = time.time() if now is None else now
     with get_connection(db_path) as conn:
-        conn.execute("BEGIN IMMEDIATE")
+        begin_write(conn, namespace="job-publisher", key="outbox")
         recover_expired(conn, now=now)
         rows = conn.execute(
-            """SELECT job_id,kind FROM durable_jobs
-            WHERE status='queued' AND next_publish_at<=? ORDER BY created_at LIMIT 32""",
+            """SELECT j.job_id,j.kind FROM durable_jobs AS j
+            WHERE j.status='queued' AND j.next_publish_at<=?
+              AND (j.lane='' OR NOT EXISTS (
+                SELECT 1 FROM durable_jobs AS predecessor
+                WHERE predecessor.lane=j.lane AND predecessor.job_id<>j.job_id
+                  AND (predecessor.status IN ('running','needs_reconciliation')
+                       OR (predecessor.status='queued' AND predecessor.id<j.id))
+              ))
+            ORDER BY j.created_at,j.id LIMIT 32""",
             (now,),
         ).fetchall()
         # Reservation is recoverable. A dispatcher killed here retries after 30s.

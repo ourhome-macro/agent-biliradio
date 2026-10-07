@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 from uuid import uuid4
-from database import get_connection
+
+from database import begin_write, get_connection
 from dialogue_rules import (
     CHAT_LLM_HISTORY_LIMIT,
     VISIBLE_CARD_LIMIT,
@@ -22,6 +23,7 @@ class DialogueRepository:
         self.user_id = user_id
 
     def _save_checkpoint(self, conn: Any, session_id: str, *, reason: str) -> None:
+        self._lock_session(conn, session_id)
         session = self._load_session(conn, session_id)
         if session is None:
             return
@@ -62,6 +64,7 @@ class DialogueRepository:
         ).fetchone()
 
     def _restore_checkpoint(self, conn: Any, checkpoint: Any) -> None:
+        self._lock_session(conn, checkpoint["session_id"])
         snapshot = _json_loads(checkpoint["snapshot_json"])
         session = snapshot.get("session") if isinstance(snapshot.get("session"), dict) else {}
         if session.get("session_id") != checkpoint["session_id"]:
@@ -171,10 +174,20 @@ class DialogueRepository:
         return [dict(row) for row in rows]
 
     def _get_or_create_session(self, conn: Any, *, session_id: str | None) -> Any:
+        if session_id:
+            self._lock_session(conn, session_id)
+        else:
+            begin_write(conn, namespace="dialogue-latest", key=self.user_id)
         session = self._load_session(conn, session_id) if session_id else self._latest_session(conn)
         if session is not None:
-            return session
+            self._lock_session(conn, session["session_id"])
+            fresh = self._load_session(conn, session["session_id"])
+            if fresh is not None:
+                return fresh
         return self._create_session(conn)
+
+    def _lock_session(self, conn: Any, session_id: str) -> None:
+        begin_write(conn, namespace="dialogue-session", key=json.dumps([self.user_id, session_id]))
 
     def _latest_session(self, conn: Any) -> Any:
         return conn.execute(
@@ -201,6 +214,7 @@ class DialogueRepository:
         ).fetchone()
 
     def _create_session(self, conn: Any) -> Any:
+        begin_write(conn, namespace="dialogue-latest", key=self.user_id)
         now = _utc_now()
         session_id = f"agent-dialogue:{uuid4().hex}"
         conn.execute(
@@ -276,6 +290,7 @@ class DialogueRepository:
         source_text: str,
         payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        self._lock_session(conn, session_id)
         now = _utc_now()
         card_id = f"agent-card:{uuid4().hex}"
         conn.execute(
@@ -317,10 +332,10 @@ class DialogueRepository:
             "updated_at": now,
         }
 
-    def _load_card(self, conn: Any, card_id: str | None) -> Any:
+    def _load_card(self, conn: Any, card_id: str | None, *, for_update: bool = False) -> Any:
         if not card_id:
             return None
-        return conn.execute(
+        row = conn.execute(
             """
             SELECT c.*
             FROM agent_dialogue_cards c
@@ -329,6 +344,10 @@ class DialogueRepository:
             """,
             (card_id, self.user_id),
         ).fetchone()
+        if row is not None and for_update:
+            self._lock_session(conn, row["session_id"])
+            return self._load_card(conn, card_id)
+        return row
 
     def _update_card(
         self,
@@ -338,6 +357,8 @@ class DialogueRepository:
         status: str,
         payload: dict[str, Any],
     ) -> None:
+        if self._load_card(conn, card_id, for_update=True) is None:
+            raise KeyError(card_id)
         conn.execute(
             """
             UPDATE agent_dialogue_cards
@@ -357,6 +378,7 @@ class DialogueRepository:
         card_id: str | None = None,
         payload: dict[str, Any] | None = None,
     ) -> None:
+        self._lock_session(conn, session_id)
         conn.execute(
             """
             INSERT INTO agent_dialogue_turns (
@@ -383,6 +405,7 @@ class DialogueRepository:
         focus: str,
         pending_context: dict[str, Any],
     ) -> None:
+        self._lock_session(conn, session_id)
         conn.execute(
             """
             UPDATE agent_dialogue_sessions

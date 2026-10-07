@@ -107,6 +107,27 @@ def test_same_lane_is_ordered_other_users_are_independent(path):
         assert claim(conn, "three") is not None
 
 
+def test_outbox_publishes_only_lane_head_until_it_completes(path):
+    with get_connection(path) as conn:
+        enqueue(conn, kind="sse", user_id="u", lane="sse:u:task", payload={}, job_id="first")
+        enqueue(conn, kind="sse", user_id="u", lane="sse:u:task", payload={}, job_id="second")
+        enqueue(conn, kind="sse", user_id="v", lane="sse:v:task", payload={}, job_id="other")
+
+    published = []
+    assert publish_pending(path, lambda job_id, kind: published.append(job_id), now=100) == 2
+    assert published == ["first", "other"]
+    assert publish_pending(path, lambda job_id, kind: published.append(job_id), now=101) == 0
+
+    with get_connection(path) as conn:
+        first = claim(conn, "first", now=101)
+    assert first is not None
+    with get_connection(path) as conn:
+        finish(conn, first, result={"delivered": True})
+
+    assert publish_pending(path, lambda job_id, kind: published.append(job_id), now=102) == 1
+    assert published[-1] == "second"
+
+
 def test_expired_owner_cannot_overwrite_reclaimed_job(path):
     with get_connection(path) as conn:
         enqueue(conn, kind="behavior", user_id="u", payload={}, job_id="j", retry_safe=True)

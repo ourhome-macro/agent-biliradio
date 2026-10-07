@@ -87,6 +87,77 @@ class SQLiteEventStore(SQLiteStore):
             rows = connection.execute("SELECT payload FROM events ORDER BY sequence").fetchall()
         return [Event.from_dict(json.loads(row[0])) for row in rows]
 
+    def list_events_since(
+        self,
+        sequence: int,
+        *,
+        tenant_id: str,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        limit: int = 500,
+    ) -> list[Event]:
+        clauses = ["sequence > ?", "json_extract(payload, '$.tenant_id') = ?"]
+        params: list[object] = [sequence, tenant_id]
+        for name, value in (
+            ("user_id", user_id), ("agent_id", agent_id), ("session_id", session_id)
+        ):
+            if value is not None:
+                clauses.append(f"json_extract(payload, '$.{name}') = ?")
+                params.append(value)
+        with self._manager.read_connection() as connection:
+            rows = connection.execute(
+                "SELECT payload FROM events WHERE " + " AND ".join(clauses)
+                + " ORDER BY sequence LIMIT ?",
+                [*params, max(1, limit)],
+            ).fetchall()
+        return [Event.from_dict(json.loads(row[0])) for row in rows]
+
+    def recent_events_for_scope(
+        self,
+        *,
+        tenant_id: str,
+        user_id: str,
+        agent_id: str | None = None,
+        since: str,
+        max_events: int = 80,
+        through_sequence: int | None = None,
+    ) -> list[Event]:
+        clauses = [
+            "json_extract(payload, '$.tenant_id') = ?",
+            "json_extract(payload, '$.user_id') = ?",
+            "json_extract(payload, '$.occurred_at') >= ?",
+            "(json_extract(payload, '$.kind') != 'observation.created' OR "
+            "json_extract(payload, '$.payload.event') IN "
+            "('skipped','dismissed','dislike','liked','collection_added',"
+            "'completed','track_reviewed','profile_statement','search'))",
+        ]
+        params: list[object] = [tenant_id, user_id, since]
+        if agent_id is not None:
+            clauses.append("json_extract(payload, '$.agent_id') = ?")
+            params.append(agent_id)
+        if through_sequence is not None:
+            clauses.append("sequence <= ?")
+            params.append(through_sequence)
+        with self._manager.read_connection() as connection:
+            rows = connection.execute(
+                "SELECT payload FROM events WHERE " + " AND ".join(clauses)
+                + " ORDER BY sequence DESC LIMIT 2000",
+                params,
+            ).fetchall()
+        per_day: dict[str, int] = {}
+        selected: list[Event] = []
+        for row in rows:
+            event = Event.from_dict(json.loads(row[0]))
+            day = event.occurred_at[:10]
+            if per_day.get(day, 0) >= 6:
+                continue
+            selected.append(event)
+            per_day[day] = per_day.get(day, 0) + 1
+            if len(selected) >= max_events:
+                break
+        return sorted(selected, key=lambda item: item.sequence)
+
     def clear(self) -> None:
         with self._manager.connection() as connection:
             connection.execute("DELETE FROM events")
@@ -199,6 +270,23 @@ class SQLiteMemoryStore(SQLiteStore):
     def list_records(self) -> list[MemoryRecord]:
         with self._manager.read_connection() as connection:
             rows = connection.execute("SELECT payload FROM memories ORDER BY memory_id").fetchall()
+        return [MemoryRecord.from_dict(json.loads(row[0])) for row in rows]
+
+    def list_records_for_scope(
+        self, *, tenant_id: str, user_id: str | None = None, agent_id: str | None = None
+    ) -> list[MemoryRecord]:
+        clauses = ["tenant_id = ?"]
+        params: list[object] = [tenant_id]
+        if user_id is not None:
+            clauses.append("user_id = ?")
+            params.append(user_id)
+        if agent_id is not None:
+            clauses.append("agent_id = ?")
+            params.append(agent_id)
+        with self._manager.read_connection() as connection:
+            rows = connection.execute(
+                "SELECT payload FROM memories WHERE " + " AND ".join(clauses), params
+            ).fetchall()
         return [MemoryRecord.from_dict(json.loads(row[0])) for row in rows]
 
     def get_many(self, memory_ids: list[str] | tuple[str, ...]) -> list[MemoryRecord]:

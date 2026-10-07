@@ -1,0 +1,12 @@
+[Unit]
+Description=Collect unreferenced Radio media scratch and orphan uploads
+After=network-online.target recommend-radio-migrate.service
+
+[Service]
+Type=oneshot
+User=radio
+Group=radio
+WorkingDirectory=/opt/agent-memory-runtime/recommend-radio/backend
+EnvironmentFile=/etc/recommend-radio/radio.env
+ExecStart=/opt/agent-memory-runtime/.venv/bin/python -m feed_runtime.cli cleanup --apply
+TimeoutStartSec=600

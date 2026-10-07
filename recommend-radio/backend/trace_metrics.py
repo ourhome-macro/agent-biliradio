@@ -1,13 +1,4 @@
 from __future__ import annotations
-
-
-def _token_count(value):
-    # Older traces redacted every key containing 'token', including numeric usage.
-    try:
-        return max(0, int(value or 0))
-    except (TypeError, ValueError, OverflowError):
-        return 0
-
 import json
 import math
 import statistics
@@ -16,6 +7,14 @@ from itertools import combinations
 from typing import Any
 
 from database import get_connection
+
+
+def _token_count(value):
+    # Older traces redacted every key containing 'token', including numeric usage.
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError, OverflowError):
+        return 0
 
 
 def summarize_traces(db_path: str, *, since: str | None = None) -> dict[str, Any]:
@@ -93,6 +92,14 @@ def summarize_traces(db_path: str, *, since: str | None = None) -> dict[str, Any
     ranking_spans = []
     input_tokens = 0
     output_tokens = 0
+    unknown_usage_attempts = 0
+    sampling_attempts = 0
+    known_cost_usd = 0.0
+    unknown_cost_attempts = 0
+    authoritative_trace_ids = {row["trace_id"] for row in spans if row["name"] == "llm.sampling"}
+    authoritative_calls = {_json_object(row["output_json"]).get("modelCallId") for row in spans
+                           if row["name"] == "llm.sampling"}
+    authoritative_calls.discard(None)
     for row in spans:
         name = str(row["name"])
         span_latencies[name].append(float(row["duration_ms"] or 0.0))
@@ -105,8 +112,24 @@ def summarize_traces(db_path: str, *, since: str | None = None) -> dict[str, Any
         if name == "candidate.rank_select":
             ranking_spans.append(row)
         span_metrics = _json_object(row["metrics_json"])
-        input_tokens += _token_count(span_metrics.get("inputTokens"))
-        output_tokens += _token_count(span_metrics.get("outputTokens"))
+        model_call_id = _json_object(row["output_json"]).get("model_call_id")
+        fallback_attempt = (name in {"model.completed", "sampling.failed"}
+                            and span_metrics.get("executionKind") == "model"
+                            and model_call_id not in authoritative_calls)
+        if name == "llm.sampling" and not span_metrics.get("usageKnown"):
+            unknown_usage_attempts += 1
+        if name == "llm.sampling" or fallback_attempt:
+            sampling_attempts += 1
+            value = span_metrics.get("costUsd")
+            if span_metrics.get("costKnown") and type(value) in (int, float) and math.isfinite(value):
+                known_cost_usd += value
+            else:
+                unknown_cost_attempts += 1
+        if name == "llm.sampling" or (row["trace_id"] not in authoritative_trace_ids
+                and model_call_id not in authoritative_calls
+                and span_metrics.get("executionKind") != "control"):
+            input_tokens += _token_count(span_metrics.get("inputTokens"))
+            output_tokens += _token_count(span_metrics.get("outputTokens"))
 
     pool_hits = sum(
         int(int(_json_object(row["output_json"]).get("candidateCount") or 0) > 0)
@@ -179,7 +202,10 @@ def summarize_traces(db_path: str, *, since: str | None = None) -> dict[str, Any
             },
             "meanSpansPerTrace": _ratio(len(spans), len(traces)),
             "timeToFirstResultMs": _distribution(ttfr_values),
-            "tokenUsage": {"input": input_tokens, "output": output_tokens},
+            "tokenUsage": {"input": input_tokens, "output": output_tokens,
+                           "unknownUsageAttempts": unknown_usage_attempts},
+            "modelUsage": {"attempts": sampling_attempts, "knownCostUsd": round(known_cost_usd, 8),
+                           "unknownCostAttempts": unknown_cost_attempts},
         },
         "process": {
             "toolCallSuccessRate": _optional_ratio(

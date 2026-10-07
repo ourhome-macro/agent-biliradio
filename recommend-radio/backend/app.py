@@ -44,8 +44,8 @@ from recommendation_service import RecommendationService
 from request_spec import RequestInterpreter
 from requests.adapters import HTTPAdapter
 from result import Result
-from settings_service import SettingsService
 from service_factory import MusicServices
+from settings_service import SettingsService
 from sse_event_client import SSEEventPublisher
 from stream_service import StreamService
 from trace_metrics import summarize_traces
@@ -57,12 +57,13 @@ load_recommend_radio_env()
 
 def record_music_behavior(*args, **kwargs):
     # Library/playback methods persist behavior in their own business transaction.
-    from rabbitmq_bus import rabbitmq_enabled
-    if not rabbitmq_enabled():
+    from job_transport import async_jobs_enabled
+    if not async_jobs_enabled():
         return _record_music_behavior(*args, **kwargs)
 
 app = Flask(__name__)
 from telemetry_setup import setup as setup_telemetry
+
 setup_telemetry('recommend-radio-api', app)
 
 @app.after_request
@@ -211,6 +212,12 @@ dialogue_service = music_services.dialogue
 dialogue_task_service = DialogueTaskService(SSEEventPublisher())
 stream_service = StreamService(bili_client)
 register_monitoring(app, user_stats_provider=admin_service.monitoring_user_stats)
+from feed_runtime.api import register_feed
+
+register_feed(app, music_services_factory=_music_services_for_request)
+from following.api import register_following
+
+register_following(app)
 
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 _IMAGE_REDIRECT_STATUSES = {301, 302, 303, 307, 308}
@@ -466,6 +473,14 @@ def search_tracks():
     page = _int_arg("page", 1)
     page_size = _int_arg("page_size", _int_arg("pageSize", 20))
     tracks = bili_client.search(keyword, page=page, page_size=page_size)
+    if keyword.strip() and page == 1:
+        _record_music_behavior(
+            amem_bridge,
+            user_id=_request_user_id_or_legacy(),
+            event="search",
+            scene="search",
+            payload={"text": keyword.strip()[:120]},
+        )
     return Result.ok(
         {
             "keyword": keyword,
@@ -898,6 +913,7 @@ def record_playback_event():
         track=track,
         scene="playback",
         payload={
+            "eventId": result.get("eventId"),
             "sessionId": result.get("sessionId"),
             "positionMs": result.get("positionMs"),
             "listenMs": result.get("listenMs"),
@@ -1208,7 +1224,10 @@ def record_analysis_event():
 
 @app.get("/api/settings")
 def get_settings():
-    return Result.ok(_settings_for_request().to_dict()).json()
+    value = _settings_for_request().to_dict()
+    from feed_runtime.reactions import feed_enabled
+    value["feedEnabled"] = feed_enabled()
+    return Result.ok(value).json()
 
 
 @app.patch("/api/settings")

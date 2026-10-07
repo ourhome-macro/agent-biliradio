@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+
 from database import get_connection
 from music_profile import MusicProfile
 from recommendation_contracts import (
@@ -222,7 +223,7 @@ class UserProfileReader:
                           AND h.skipped = 1
                           AND t.owner_mid IS NOT NULL
                     )
-                    GROUP BY owner_mid
+                    AS negative_evidence GROUP BY owner_mid
                     HAVING COUNT(*) >= ?
                     LIMIT 50
                     """,

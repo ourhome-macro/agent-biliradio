@@ -32,6 +32,9 @@ def _server_hook(span, environ):
 
 def setup(service: str, app=None):
     configure(service)
+    from agent_memory_runtime.agent.sampling import register_sampling_observer
+    from full_trace import record_sampling
+    register_sampling_observer(record_sampling)
     from opentelemetry.instrumentation.grpc import GrpcInstrumentorClient, GrpcInstrumentorServer
     from opentelemetry.instrumentation.requests import RequestsInstrumentor
 

@@ -1,3 +1,5 @@
+import { claimAudioPlayback } from '@/media/PlaybackCoordinator'
+
 class StreamingAudioPlayer {
   private audioElement: HTMLAudioElement | null = null
   private volume = 1.0
@@ -90,6 +92,7 @@ class StreamingAudioPlayer {
     if (this.playPending) return true
     this.playPending = true
     const generation = this.streamGeneration
+    claimAudioPlayback()
     this.audioElement.play().then(() => {
       if (generation === this.streamGeneration) this.playPending = false
     }).catch(error => {
@@ -112,6 +115,7 @@ class StreamingAudioPlayer {
 
   resume() {
     if (this.audioElement) {
+      claimAudioPlayback()
       this.audioElement.play().catch(error => {
         console.error('[StreamingAudioPlayer] Resume error:', error)
       })

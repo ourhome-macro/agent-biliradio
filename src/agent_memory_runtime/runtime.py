@@ -208,6 +208,7 @@ class AgentMemoryRuntime:
         agent_id: str | None = None,
         session_id: str | None = None,
         reason: str = "scheduled",
+        mode: str = "deep",
     ) -> object:
         if self.dream_store is None:
             raise ValueError("dream_store is required to schedule Auto Dream")
@@ -217,6 +218,7 @@ class AgentMemoryRuntime:
             agent_id=agent_id,
             session_id=session_id,
             reason=reason,
+            mode=mode,
         )
 
     def on_session_end(

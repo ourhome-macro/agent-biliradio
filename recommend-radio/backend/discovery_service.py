@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 import json
 import os
 import time
@@ -11,8 +10,8 @@ from uuid import uuid4
 from candidate_pool import CandidatePool
 from content_embeddings import ContentEmbeddingService
 from database import get_connection
-from durable_jobs import enqueue
 from discovery_planner import DiscoveryPlanner
+from durable_jobs import enqueue
 from experiments import ExperimentAssignments
 from full_trace import FullTrace, current_trace_id
 from keyword_evolution import KeywordEvolutionService
@@ -286,7 +285,7 @@ class DiscoveryService:
                     FROM playback_recent r JOIN tracks t ON t.track_id=r.track_id
                     WHERE r.user_id=? AND r.completed=1 AND t.owner_mid IS NOT NULL
                 )
-                GROUP BY owner_mid ORDER BY evidence_count DESC LIMIT 2
+                AS uploader_evidence GROUP BY owner_mid ORDER BY evidence_count DESC LIMIT 2
                 """,
                 (self.user_id, self.user_id),
             ).fetchall()
@@ -300,7 +299,7 @@ class DiscoveryService:
                     SELECT t.bvid, r.last_played_at AS evidence_at
                     FROM playback_recent r JOIN tracks t ON t.track_id=r.track_id
                     WHERE r.user_id=? AND r.completed=1
-                ) ORDER BY evidence_at DESC LIMIT 2
+                ) AS seed_evidence ORDER BY evidence_at DESC LIMIT 2
                 """,
                 (self.user_id, self.user_id),
             ).fetchall()

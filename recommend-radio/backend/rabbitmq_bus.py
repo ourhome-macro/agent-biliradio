@@ -140,13 +140,14 @@ class RabbitMQBehaviorBridge:
         self._publisher = publisher or OutboxBehaviorPublisher()
 
     def record_behavior(self, payload: dict[str, Any]) -> dict[str, Any]:
+        from job_transport import job_transport
         event_id = self._publisher.publish(dict(payload or {}))
         return {
             "enabled": True,
             "queued": True,
             "eventId": event_id,
             "memoryIds": [],
-            "source": "rabbitmq",
+            "source": "redis_stream" if job_transport()=="redis_stream" else "rabbitmq",
         }
 
     def behavior_bus_health(self) -> bool:
@@ -172,7 +173,8 @@ def rabbitmq_enabled() -> bool:
 
 
 def wrap_behavior_bridge(bridge: Any) -> Any:
-    if not rabbitmq_enabled() or not getattr(bridge, "enabled", False):
+    from job_transport import async_jobs_enabled
+    if not async_jobs_enabled() or not getattr(bridge, "enabled", False):
         return bridge
     return RabbitMQBehaviorBridge(bridge)
 

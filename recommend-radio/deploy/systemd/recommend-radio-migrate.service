@@ -1,0 +1,13 @@
+[Unit]
+Description=Recommend Radio database migration
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radio
+Group=radio
+WorkingDirectory=/opt/agent-memory-runtime/recommend-radio/backend
+EnvironmentFile=/etc/recommend-radio/radio.env
+ExecStart=/opt/agent-memory-runtime/.venv/bin/python migrate_db.py
+RemainAfterExit=yes

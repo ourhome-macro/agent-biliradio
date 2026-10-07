@@ -118,6 +118,7 @@ async def _execute(service, name, payload, request_id, job_id, action, *, stages
         return {"inputCallId": call_ids[index - 1] if index else "request", "inputHash": digest}
 
     class OperationGateway:
+        execution_kind = "control"
         # A deterministic router, not a second LLM. Business model calls stay in
         # the operation and are traced independently with their actual provider.
         async def complete(self, *, messages, tools, metadata):

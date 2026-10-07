@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Radio media scratch and orphan cleanup
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=15m
+Persistent=true
+Unit=recommend-radio-media-cleanup.service
+
+[Install]
+WantedBy=timers.target

@@ -5,7 +5,7 @@ import json
 import time
 
 import click
-from database import get_connection, init_db
+from database import begin_write, get_connection, init_db
 
 
 @click.group()
@@ -41,7 +41,7 @@ def resolve(job_id, decision, reason):
     if not reason.strip():
         raise click.ClickException("A reconciliation reason is required")
     with get_connection() as conn:
-        conn.execute("BEGIN IMMEDIATE")
+        begin_write(conn, namespace="job", key=job_id)
         changed = conn.execute(
             "UPDATE durable_jobs SET status=?,updated_at=? "
             "WHERE job_id=? AND status='needs_reconciliation'",

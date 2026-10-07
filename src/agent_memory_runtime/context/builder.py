@@ -58,6 +58,20 @@ class ContextBuilder:
             )
             for record in selected
         )
+        selected_ids = {record.memory_id for record in selected}
+        oversized_memory_ids = tuple(
+            record.memory_id
+            for record in records
+            if record.memory_id not in selected_ids
+            and estimate_tokens(
+                record, estimator=self.token_estimator, model=self.config.llm.model
+            ) > self.config.context_token_budget
+        )
+        abbreviated_memory_ids = tuple(
+            record.memory_id
+            for record in selected
+            if record.metadata.get("_context_abbreviated") is True
+        )
         personalization = build_personalization_profile(selected)
         # 结构化投影和文本投影都先移除伪造围栏，避免下游调用绕过第一层防护。
         projected = tuple(_sanitize_projection(project_record(record)) for record in selected)
@@ -72,6 +86,8 @@ class ContextBuilder:
                 **dict(metadata or {}),
                 "estimated_memory_tokens": estimated_tokens,
                 "memory_token_budget": self.config.context_token_budget,
+                "abbreviated_memory_ids": abbreviated_memory_ids,
+                "omitted_oversized_memory_ids": oversized_memory_ids,
             },
             personalization_context=personalization.render(),
             personalization=dict(personalization.values),

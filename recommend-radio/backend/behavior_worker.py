@@ -11,7 +11,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from database import get_connection, init_db
+from database import begin_write, get_connection, init_db
 from durable_jobs import enqueue
 from rabbitmq_bus import RabbitMQSettings, declare_topology, pika
 
@@ -27,7 +27,8 @@ def ingest_legacy_message(conn, body: bytes) -> str:
     if not event_id or not user_id:
         raise ValueError("behavior event_id and userId are required")
     job_id = "legacy:" + hashlib.sha256(json.dumps([user_id, event_id]).encode()).hexdigest()
-    conn.execute("BEGIN IMMEDIATE")
+    begin_write(conn, namespace="job-capacity", key=user_id)
+    begin_write(conn, namespace="job", key=job_id)
     old = conn.execute("SELECT payload_json FROM durable_jobs WHERE job_id=?", (job_id,)).fetchone()
     previous = json.loads(old["payload_json"]) if old else {}
     payload["occurred_at"] = (

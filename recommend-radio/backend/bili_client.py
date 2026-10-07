@@ -1208,6 +1208,76 @@ class BiliClient:
         except requests.RequestException as exc:
             raise APIError.network_error(str(exc))
 
+    @staticmethod
+    def _relation_payload(response, context):
+        payload = BiliClient._json_payload(response, context)
+        code = payload.get("code")
+        if code == -101:
+            raise APIError.auth_required("Bilibili login expired")
+        if code != 0:
+            # Never include cookies, request bodies or untrusted remote text in errors.
+            raise APIError.api_error(f"Bilibili relation rejected ({code})")
+        data = payload.get("data")
+        return data if isinstance(data, dict) else {}
+
+    def get_follow_relation(self, mid: int) -> bool:
+        if type(mid) is not int or mid <= 0:
+            raise APIError.validation_error("Invalid creator MID")
+        response = self._authenticated_get(
+            "https://api.bilibili.com/x/relation", "follow relationship", {"fid": mid}
+        )
+        data = self._relation_payload(response, "follow relationship")
+        attribute = data.get("attribute")
+        if type(attribute) is not int or attribute not in {0, 1, 2, 6, 128}:
+            raise APIError.api_error("Unrecognized Bilibili relation response")
+        return attribute in {1, 2, 6}
+
+    def list_followings(self, account_mid: int, *, page=1, page_size=50):
+        if type(account_mid) is not int or account_mid <= 0 or type(page) is not int or page < 1:
+            raise APIError.validation_error("Invalid following list parameters")
+        response = self._authenticated_get(
+            "https://api.bilibili.com/x/relation/followings", "following list",
+            {"vmid": account_mid, "pn": page, "ps": min(50, max(1, page_size)), "order": "desc"},
+        )
+        data = self._relation_payload(response, "following list")
+        if not isinstance(data.get("list"), list) or type(data.get("total")) is not int:
+            raise APIError.api_error("Invalid Bilibili following list")
+        return {"items": data["list"], "total": data["total"]}
+
+    def set_follow_relation(self, mid: int, following: bool):
+        from http.cookies import SimpleCookie
+        if type(mid) is not int or mid <= 0 or type(following) is not bool:
+            raise APIError.validation_error("Invalid follow command")
+        cookie = self.cookie_provider() if self.cookie_provider else None
+        if not cookie:
+            raise APIError.auth_required("Bilibili login is required")
+        parsed = SimpleCookie()
+        parsed.load(cookie)
+        csrf = parsed.get("bili_jct")
+        if not csrf or not csrf.value:
+            raise APIError.auth_required("Bilibili CSRF token is missing")
+        started, outcome = time.perf_counter(), "success"
+        try:
+            response = self._authenticated_http_session().post(
+                "https://api.bilibili.com/x/relation/modify",
+                data={"fid": mid, "act": 1 if following else 2, "csrf": csrf.value, "re_src": 11},
+                headers={**HttpHeader.default_headers(), "Cookie": cookie},
+                timeout=self.timeout, allow_redirects=False,
+            )
+            response.raise_for_status()
+            self._relation_payload(response, "follow modification")
+        except requests.Timeout:
+            outcome = "timeout"
+            raise APIError.request_timeout("follow modification outcome is unknown") from None
+        except requests.RequestException:
+            outcome = "upstream_error"
+            raise APIError.network_error("Bilibili follow request failed") from None
+        except APIError:
+            outcome = "upstream_error"
+            raise
+        finally:
+            record_bilibili_request("relation_modify", outcome, time.perf_counter() - started)
+
     def _ensure_guest_cookies(self, force: bool = False) -> None:
         with self._guest_cookie_lock:
             if self._guest_cookie_ready and not force:

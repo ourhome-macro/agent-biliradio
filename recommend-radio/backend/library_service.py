@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from database import DEFAULT_DB_PATH, LEGACY_OWNER_USER_ID, get_connection, init_db
+from database import DEFAULT_DB_PATH, LEGACY_OWNER_USER_ID, begin_write, get_connection, init_db
 from error_code import APIError
 from models import Track, make_track_id, normalize_bvid
 from music_entity import persist_track_entity
@@ -214,19 +214,10 @@ class LibraryService:
     def add_like(self, track: Track) -> dict[str, Any]:
         self.upsert_track(track)
         now = utc_now()
-        with get_connection(self.db_path) as conn:
-            inserted = conn.execute(
-                """
-                INSERT INTO likes (user_id, track_id, created_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(user_id, track_id) DO NOTHING
-                """,
-                (self.user_id, track.track_id, now),
-            )
-            if inserted.rowcount:
-                from durable_jobs import enqueue_behavior
-                enqueue_behavior(conn, user_id=self.user_id, event='liked',
-                                 scene='library', track=track)
+        from feed_runtime.reactions import ReactionService
+        from feed_runtime.repository import FeedRepository
+        ReactionService(FeedRepository(self.db_path)).for_track(
+            self.user_id,track,"like",f"library:{uuid.uuid4().hex}")
         return {"track": track.to_dict(), "likedAt": now}
 
     def is_liked(self, bvid: str, cid: Optional[int] = None) -> bool:
@@ -251,30 +242,14 @@ class LibraryService:
 
     def remove_like(self, bvid: str, cid: Optional[int] = None) -> int:
         with get_connection(self.db_path) as conn:
-            conn.execute('BEGIN IMMEDIATE')
             liked = conn.execute("""SELECT t.* FROM tracks t JOIN likes l ON t.track_id=l.track_id
                 WHERE l.user_id=? AND t.bvid=? AND (? IS NULL OR t.cid=?)""",
                 (self.user_id,normalize_bvid(bvid),cid,cid)).fetchall()
-            if cid is None:
-                rows = conn.execute(
-                    """
-                    DELETE FROM likes
-                    WHERE user_id = ?
-                      AND track_id IN (SELECT track_id FROM tracks WHERE bvid = ?)
-                    """,
-                    (self.user_id, normalize_bvid(bvid)),
-                )
-            else:
-                rows = conn.execute(
-                    "DELETE FROM likes WHERE user_id = ? AND track_id = ?",
-                    (self.user_id, make_track_id(bvid, cid)),
-                )
-            removed = rows.rowcount
-            from durable_jobs import enqueue_behavior
-            for item in liked:
-                enqueue_behavior(conn, user_id=self.user_id, event='unliked',
-                                 scene='library', track=self._track_from_row(item))
-            return removed
+        from feed_runtime.reactions import ReactionService
+        from feed_runtime.repository import FeedRepository
+        service=ReactionService(FeedRepository(self.db_path))
+        return sum(int(service.for_track(self.user_id,self._track_from_row(item),"neutral",
+                       f"library:{uuid.uuid4().hex}")["changed"]) for item in liked)
 
     def get_review(self, bvid: str, cid: Optional[int] = None) -> Optional[dict[str, Any]]:
         track_id = make_track_id(bvid, cid)
@@ -307,7 +282,7 @@ class LibraryService:
 
         now = utc_now()
         with get_connection(self.db_path) as conn:
-            conn.execute('BEGIN IMMEDIATE')
+            begin_write(conn, namespace="track-review", key=json.dumps([self.user_id, track.track_id]))
             previous = conn.execute('SELECT rating,mood,note FROM track_reviews '
                                     'WHERE user_id=? AND track_id=?',
                                     (self.user_id,track.track_id)).fetchone()
@@ -356,6 +331,7 @@ class LibraryService:
     def delete_review(self, bvid: str, cid: Optional[int] = None) -> dict[str, Any]:
         track_id = make_track_id(bvid, cid)
         with get_connection(self.db_path) as conn:
+            begin_write(conn, namespace="track-review", key=json.dumps([self.user_id, track_id]))
             cursor = conn.execute(
                 "DELETE FROM track_reviews WHERE user_id = ? AND track_id = ?",
                 (self.user_id, track_id),
@@ -461,12 +437,18 @@ class LibraryService:
         name: Optional[str] = None,
         cover: Optional[str] = None,
     ) -> dict[str, Any]:
-        current = self.get_playlist(playlist_id)
-        next_name = (name if name is not None else current["name"]).strip()
-        if not next_name:
-            raise APIError.validation_error("playlist name is required")
-        next_cover = cover if cover is not None else current["cover"]
         with get_connection(self.db_path) as conn:
+            begin_write(conn, namespace="playlist", key=json.dumps([self.user_id, playlist_id]))
+            current = conn.execute(
+                "SELECT name,cover FROM playlists WHERE user_id=? AND id=?",
+                (self.user_id, playlist_id),
+            ).fetchone()
+            if current is None:
+                raise APIError.not_found(f"Playlist not found: {playlist_id}")
+            next_name = (name if name is not None else current["name"]).strip()
+            if not next_name:
+                raise APIError.validation_error("playlist name is required")
+            next_cover = cover if cover is not None else current["cover"]
             conn.execute(
                 """
                 UPDATE playlists
@@ -479,6 +461,7 @@ class LibraryService:
 
     def delete_playlist(self, playlist_id: str) -> dict[str, Any]:
         with get_connection(self.db_path) as conn:
+            begin_write(conn, namespace="playlist", key=json.dumps([self.user_id, playlist_id]))
             cursor = conn.execute(
                 "DELETE FROM playlists WHERE user_id = ? AND id = ?",
                 (self.user_id, playlist_id),
@@ -520,7 +503,7 @@ class LibraryService:
 
         now = utc_now()
         with get_connection(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="playlist", key=json.dumps([self.user_id, playlist_id]))
             playlist = conn.execute(
                 "SELECT 1 FROM playlists WHERE user_id = ? AND id = ?",
                 (self.user_id, playlist_id),
@@ -589,7 +572,7 @@ class LibraryService:
             if write:
                 # Reserve the writer before calculating positions so concurrent
                 # batches cannot assign the same playlist position.
-                conn.execute("BEGIN IMMEDIATE")
+                begin_write(conn, namespace="playlist", key=json.dumps([self.user_id, playlist_id]))
             playlist = conn.execute(
                 "SELECT 1 FROM playlists WHERE user_id = ? AND id = ?",
                 (self.user_id, playlist_id),

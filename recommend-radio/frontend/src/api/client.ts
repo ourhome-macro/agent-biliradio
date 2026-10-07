@@ -738,7 +738,7 @@ function isMutation(method?: string): boolean {
   return !['GET', 'HEAD', 'OPTIONS'].includes(normalized)
 }
 
-async function apiRequest<T>(
+export async function apiRequest<T>(
   path: string,
   init?: RequestInit,
   options: ApiRequestOptions = {}

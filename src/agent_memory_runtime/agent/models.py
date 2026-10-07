@@ -102,6 +102,7 @@ class ModelMessage:
     name: str | None = None
     tool_call_id: str | None = None
     tool_calls: tuple[ModelToolCall, ...] = ()
+    message_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.role not in {"system", "user", "assistant", "tool"}:
@@ -110,13 +111,16 @@ class ModelMessage:
             raise ValueError("tool messages require tool_call_id")
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        value = {
             "role": self.role,
             "content": self.content,
             "name": self.name,
             "tool_call_id": self.tool_call_id,
             "tool_calls": [call.to_dict() for call in self.tool_calls],
         }
+        if self.message_id is not None:
+            value["message_id"] = self.message_id
+        return value
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> ModelMessage:
@@ -129,6 +133,41 @@ class ModelMessage:
                 ModelToolCall.from_dict(_dict(item))
                 for item in _list(value.get("tool_calls"))
             ),
+            message_id=_optional_str(value.get("message_id")),
+        )
+
+
+@dataclass(frozen=True)
+class ConstraintRevision:
+    version: int
+    source_message_id: str
+    content: str
+    subject_tokens: tuple[str, ...]
+    polarity: str
+    status: str = "active"
+    superseded_by: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "version": self.version,
+            "source_message_id": self.source_message_id,
+            "content": self.content,
+            "subject_tokens": list(self.subject_tokens),
+            "polarity": self.polarity,
+            "status": self.status,
+            "superseded_by": self.superseded_by,
+        }
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> ConstraintRevision:
+        return cls(
+            version=int(value["version"]),
+            source_message_id=str(value["source_message_id"]),
+            content=str(value["content"]),
+            subject_tokens=tuple(str(item) for item in _list(value.get("subject_tokens"))),
+            polarity=str(value.get("polarity") or "unknown"),
+            status=str(value.get("status") or "active"),
+            superseded_by=_optional_str(value.get("superseded_by")),
         )
 
 
@@ -411,6 +450,9 @@ class AgentCheckpoint:
     output_repair_attempts: int = 0
     compaction_summary: str = ""
     pinned_messages: tuple[ModelMessage, ...] = ()
+    constraint_revisions: tuple[ConstraintRevision, ...] = ()
+    constraint_processed_message_ids: tuple[str, ...] = ()
+    current_user_intent: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -426,6 +468,9 @@ class AgentCheckpoint:
             "output_repair_attempts": self.output_repair_attempts,
             "compaction_summary": self.compaction_summary,
             "pinned_messages": [message.to_dict() for message in self.pinned_messages],
+            "constraint_revisions": [item.to_dict() for item in self.constraint_revisions],
+            "constraint_processed_message_ids": list(self.constraint_processed_message_ids),
+            "current_user_intent": self.current_user_intent,
         }
 
     @classmethod
@@ -453,6 +498,14 @@ class AgentCheckpoint:
                 ModelMessage.from_dict(_dict(item))
                 for item in _list(value.get("pinned_messages"))
             ),
+            constraint_revisions=tuple(
+                ConstraintRevision.from_dict(_dict(item))
+                for item in _list(value.get("constraint_revisions"))
+            ),
+            constraint_processed_message_ids=tuple(
+                str(item) for item in _list(value.get("constraint_processed_message_ids"))
+            ),
+            current_user_intent=str(value.get("current_user_intent") or ""),
         )
 
 

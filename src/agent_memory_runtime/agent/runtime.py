@@ -53,6 +53,7 @@ from agent_memory_runtime.agent.observability import (
     AgentRunEvaluator,
     RuntimeMetrics,
 )
+from agent_memory_runtime.agent.sampling import SamplingExecutor, SamplingState
 from agent_memory_runtime.agent.output import (
     StructuredOutputResult,
     output_contract_instruction,
@@ -114,6 +115,7 @@ class BusinessAgentRuntime:
         self.module_registry = module_registry or AgentModuleRegistry()
         self.policy_resolver = policy_resolver or StaticAgentPolicyResolver()
         self.metrics = metrics or RuntimeMetrics()
+        self.sampling_executor = SamplingExecutor(self.metrics)
         self.observers = observers
         self.evaluators = evaluators
         self.worker_id = worker_id or f"agent-worker-{uuid4()}"
@@ -565,6 +567,27 @@ class BusinessAgentRuntime:
             model=self.model_name,
             current_cost_usd=run.cost_usd,
         )
+        calls = await asyncio.to_thread(self.state_store.list_tool_calls, run.run_id)
+        turns = await asyncio.to_thread(self.state_store.list_turns, run.run_id)
+        recent = sorted(turns, key=lambda item: item.sequence)[-policy.max_repeated_tool_failures:]
+        if len(recent) == policy.max_repeated_tool_failures:
+            failures = {ToolCallStatus.FAILED, ToolCallStatus.BLOCKED, ToolCallStatus.REJECTED}
+            by_id = {item.call_id:item for item in calls}
+            signatures = []
+            for previous in recent:
+                actions = previous.response.tool_calls if previous.response else ()
+                records = [by_id.get(action.call_id) for action in actions]
+                if not records or any(item is None or item.status not in failures for item in records):
+                    break
+                signatures.append(secure_hash([{"tool":item.tool_name,"arguments":item.arguments,
+                    "error_type":item.error_type} for item in records]))
+            if len(signatures) == len(recent) and len(set(signatures)) == 1:
+                yield await self._publish(factory.create("run.no_progress", {
+                    "reason": "repeated_tool_failure", "tool_name": records[-1].tool_name,
+                    "count": len(recent),
+                }))
+                self.metrics.increment("runs.no_progress")
+                raise AgentPolicyError("agent repeated the same failed action without progress")
         _check_pre_model_budget(run, policy, estimate)
         sequence = run.step + 1
         turn = AgentTurn.new(run_id=run.run_id, sequence=sequence)
@@ -585,54 +608,18 @@ class BusinessAgentRuntime:
         token.raise_if_cancelled()
         model_started_at = perf_counter()
         streamed_output = False
+        sampling = SamplingState(turn.turn_id, getattr(self.model_gateway, "execution_kind", "model"))
         try:
-            async with asyncio.timeout(policy.model_timeout_seconds):
-                stream = getattr(self.model_gateway, "stream", None)
-                if callable(stream):
-                    model_progress = _ModelProgress()
-                    async for delta in self._consume_model_stream(
-                        model_progress,
-                        stream(
-                            messages=checkpoint.messages,
-                            tools=definitions,
-                            metadata={
-                                "run_id": run.run_id,
-                                "tenant_id": run.tenant_id,
-                                "output_contract": _output_contract_metadata(
-                                    run.request.output_contract
-                                ),
-                            },
-                        ),
-                        token=token,
-                    ):
-                        if run.request.output_contract is None:
-                            streamed_output = True
-                            yield await self._publish(
-                                factory.create(
-                                    "model.output.delta",
-                                    {"delta": delta},
-                                )
-                            )
-                    if model_progress.response is None:
-                        raise ModelProtocolError(
-                            "streaming model gateway did not emit a completed response"
-                        )
-                    response = model_progress.response
-                else:
-                    response = await _await_cancellable(
-                        self.model_gateway.complete(
-                            messages=checkpoint.messages,
-                            tools=definitions,
-                            metadata={
-                                "run_id": run.run_id,
-                                "tenant_id": run.tenant_id,
-                                "output_contract": _output_contract_metadata(
-                                    run.request.output_contract
-                                ),
-                            },
-                        ),
-                        token,
-                    )
+            async for delta in self.sampling_executor.execute(sampling,
+                gateway=self.model_gateway, messages=checkpoint.messages, tools=definitions,
+                metadata={"run_id":run.run_id,"tenant_id":run.tenant_id,
+                          "model_call_id":turn.turn_id,"user_turn_id":run.request.request_id,
+                          "output_contract":_output_contract_metadata(run.request.output_contract)},
+                token=token,timeout=policy.model_timeout_seconds):
+                if run.request.output_contract is None:
+                    streamed_output = True
+                    yield await self._publish(factory.create("model.output.delta", {"delta":delta}))
+            response = sampling.response
         except Exception as error:
             await asyncio.to_thread(
                 self.state_store.save_turn,
@@ -643,6 +630,19 @@ class BusinessAgentRuntime:
                     updated_at=utc_now_iso(),
                 ),
             )
+            provider_record = sampling.provider_record or {}
+            failed_input = provider_record.get("inputTokens") or 0
+            failed_output = provider_record.get("outputTokens") or 0
+            failed_cost = estimate_cost(failed_input, failed_output, policy=policy)
+            run = await self._update_active_run(run, factory, model_calls=run.model_calls + 1,
+                input_tokens=run.input_tokens + failed_input, output_tokens=run.output_tokens + failed_output,
+                cost_usd=round(run.cost_usd+(failed_cost or 0.0),8))
+            yield await self._publish(factory.create("sampling.failed", {
+                "model_call_id":turn.turn_id,"execution_kind":sampling.execution_kind,
+                "error_type":type(error).__name__,"usage_known":sampling.usage_known,
+                "input_tokens":failed_input,"output_tokens":failed_output,
+                "cost_usd":failed_cost if sampling.usage_known else None,
+            }))
             raise
         self.metrics.increment("models.calls")
         self.metrics.observe(
@@ -734,6 +734,9 @@ class BusinessAgentRuntime:
             {
                 "turn": sequence,
                 "model": response.model,
+                "model_call_id": turn.turn_id,
+                "execution_kind": sampling.execution_kind,
+                "usage_known": sampling.usage_known,
                 "response_id": response.response_id,
                 "finish_reason": response.finish_reason,
                 "input_tokens": response.input_tokens,
@@ -821,6 +824,8 @@ class BusinessAgentRuntime:
             record = existing
             if record.run_id != run.run_id or record.tenant_id != run.tenant_id:
                 raise AgentRunConflictError("tool call id crosses a run identity boundary")
+            if record.tool_name != call.name or secure_hash(record.arguments) != secure_hash(call.arguments):
+                raise AgentRunConflictError("tool call id is bound to different arguments")
 
         actual_tool_calls = len(
             await asyncio.to_thread(self.state_store.list_tool_calls, run.run_id)
