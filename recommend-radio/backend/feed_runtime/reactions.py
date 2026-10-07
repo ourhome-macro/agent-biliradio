@@ -8,6 +8,7 @@ from database import begin_write, get_connection
 from error_code import APIError
 from models import Track
 
+from .bitmap import user_bitmap_id
 from .metrics import count
 from .repository import encode
 
@@ -38,6 +39,7 @@ class ReactionService:
             or len(command_id) > 180
         ):
             raise APIError.validation_error("Invalid reaction or Idempotency-Key")
+        user_bitmap_id(self.repo.db_path, user_id, create=True)
         now = time.time()
         with get_connection(self.repo.db_path) as conn:
             # Serialize aliases of the same user's track and idempotency keys.
@@ -241,6 +243,7 @@ class ReactionService:
         )
 
     def project(self, payload):
+        bitmap_id = user_bitmap_id(self.repo.db_path, payload["user_id"], create=True)
         with get_connection(self.repo.db_path) as conn:
             self._apply_projection(conn, payload)
             counter = dict(
@@ -258,7 +261,11 @@ class ReactionService:
         if self.cache:
             self.cache.publish_counter(payload["content_id"], counter)
             self.cache.publish_reaction(
-                payload["user_id"], payload["content_id"], relation["state"], relation["version"]
+                payload["user_id"],
+                payload["content_id"],
+                relation["state"],
+                relation["version"],
+                bitmap_id=bitmap_id,
             )
         count("projection")
         return counter
@@ -314,7 +321,63 @@ class ReactionService:
                 self.cache.publish_counter(content_id, counter)
                 for relation in relations:
                     self.cache.publish_reaction(
-                        relation["user_id"], content_id, relation["state"], relation["version"]
+                        relation["user_id"],
+                        content_id,
+                        relation["state"],
+                        relation["version"],
+                        bitmap_id=user_bitmap_id(
+                            self.repo.db_path, relation["user_id"], create=True
+                        ),
                     )
             total_relations += len(relations)
         return {"contents": len(ids), "relations": total_relations}
+
+    def rebuild_bitmaps(self, *, batch_size=500):
+        """Bounded online backfill without rewriting authoritative counts or Outbox."""
+        if not self.cache or self.cache.redis is None:
+            raise RuntimeError("Redis is required for a Bitmap projection rebuild")
+        if type(batch_size) is not int or not 1 <= batch_size <= 1000:
+            raise ValueError("Bitmap rebuild batch size must be between 1 and 1000")
+        cursor, processed, published = None, 0, 0
+        while True:
+            parameters = []
+            after = ""
+            if cursor:
+                after = " WHERE r.content_id>? OR (r.content_id=? AND r.user_id>?)"
+                parameters.extend((cursor[0], cursor[0], cursor[1]))
+            parameters.append(batch_size)
+            with get_connection(self.repo.db_path) as conn:
+                rows = [
+                    dict(r)
+                    for r in conn.execute(
+                        "SELECT r.*,b.bitmap_id FROM content_reactions r "
+                        "LEFT JOIN reaction_bitmap_users b ON b.user_id=r.user_id"
+                        + after
+                        + " ORDER BY r.content_id,r.user_id LIMIT ?",
+                        tuple(parameters),
+                    )
+                ]
+            if not rows:
+                break
+            for relation in rows:
+                bitmap_id = relation["bitmap_id"] or user_bitmap_id(
+                    self.repo.db_path,
+                    relation["user_id"],
+                    create=True,
+                )
+                published += int(
+                    self.cache.publish_reaction(
+                        relation["user_id"],
+                        relation["content_id"],
+                        relation["state"],
+                        relation["version"],
+                        bitmap_id=int(bitmap_id),
+                    )
+                )
+            processed += len(rows)
+            cursor = (rows[-1]["content_id"], rows[-1]["user_id"])
+        return {
+            "relations": processed,
+            "published": published,
+            "skippedNewerVersions": processed - published,
+        }

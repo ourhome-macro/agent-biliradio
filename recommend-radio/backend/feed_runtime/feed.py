@@ -80,6 +80,7 @@ class FeedService:
                 snapshot["legacy_snapshot"] = legacy_snapshot
                 if mode == "following":
                     from .following_feed import following_snapshot
+
                     snapshot["following"] = following_snapshot(self.repo.db_path, user_id)
                 version = hashlib.sha256(encode(snapshot).encode()).hexdigest()
                 conn.execute(
@@ -135,12 +136,14 @@ class FeedService:
                 row[0]
                 for row in conn.execute(
                     "SELECT c.track_id FROM feed_items i JOIN feed_content c "
-                    "ON c.content_id=i.content_id WHERE i.session_id=?", (session_id,)
+                    "ON c.content_id=i.content_id WHERE i.session_id=?",
+                    (session_id,),
                 )
             }
         spec = RequestSpec.from_dict(json.loads(session["spec_json"]))
         if session["mode"] == "following":
             from .following_feed import following_page
+
             return following_page(self, user_id, session, number, cursor, spec)
         self._sync(user_id, spec)
         from .recommendation import catalog_exclusions, deduplicate_catalog, distinct_catalog_count
@@ -148,7 +151,9 @@ class FeedService:
         rows = []
         seen_since = time.time() - self.config.seen_cooldown_seconds
         identity_exclusions = catalog_exclusions(
-            user_id=user_id, session_id=session_id, db_path=self.repo.db_path,
+            user_id=user_id,
+            session_id=session_id,
+            db_path=self.repo.db_path,
             seen_since=seen_since,
         )
         profile_snapshot = json.loads(session["profile_json"])
@@ -168,10 +173,16 @@ class FeedService:
             ]
             if session["mode"] == "personal" and self.recommendations:
                 allowed = self.recommendations.eligible_feed_catalog(
-                    profile=frozen_profile, request_spec=spec,
+                    profile=frozen_profile,
+                    request_spec=spec,
                     legacy_snapshot=profile_snapshot.get("legacy_snapshot", {}),
-                    catalog=[(Track.from_dict(json.loads(row["metadata_json"])),
-                              json.loads(row["facets_json"])) for row in matching],
+                    catalog=[
+                        (
+                            Track.from_dict(json.loads(row["metadata_json"])),
+                            json.loads(row["facets_json"]),
+                        )
+                        for row in matching
+                    ],
                 )
                 matching = [
                     row for row, accepted in zip(matching, allowed, strict=True) if accepted
@@ -316,8 +327,14 @@ class FeedService:
         following = None
         if session["mode"] == "following":
             from .following_feed import render_state
+
             following = render_state(self.repo.db_path, user_id, session)
         with get_connection(self.repo.db_path) as conn:
+            bitmap_user = conn.execute(
+                "SELECT bitmap_id FROM reaction_bitmap_users WHERE user_id=?",
+                (user_id,),
+            ).fetchone()
+            bitmap_id = int(bitmap_user[0]) if bitmap_user else None
             for item in issued:
                 # Cache never authorizes visibility or reproduces a user's current dislike.
                 row = conn.execute(
@@ -358,11 +375,21 @@ class FeedService:
                         shared=row["scope"] == "public",
                     )
                     manifest = json.loads(row["manifest_json"] or "{}")
+                    relation = self.cache.reaction(
+                        user_id,
+                        row["content_id"],
+                        lambda r=row: {
+                            "state": r["reaction"] or "neutral",
+                            "version": r["reaction_version"] or 0,
+                        },
+                        bitmap_id=bitmap_id,
+                        expected_version=row["reaction_version"] or 0,
+                    )
                     output.update(
                         track=metadata,
                         assetStatus=row["asset_status"] or "empty",
-                        reaction=row["reaction"] or "neutral",
-                        relationVersion=row["reaction_version"] or 0,
+                        reaction=relation["state"],
+                        relationVersion=relation["version"],
                         counts={
                             "likes": row["likes"] or 0,
                             "dislikes": row["dislikes"] or 0,

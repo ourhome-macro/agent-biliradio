@@ -19,6 +19,7 @@ def main():
             "health",
             "provision",
             "rebuild",
+            "rebuild-bitmaps",
             "cleanup",
             "evaluate",
             "operations",
@@ -71,6 +72,8 @@ def main():
         result = runtime.health()
     elif args.command == "rebuild":
         result = runtime.reactions.rebuild()
+    elif args.command == "rebuild-bitmaps":
+        result = runtime.reactions.rebuild_bitmaps()
     elif args.command == "evaluate":
         from .evaluation import evaluate
 

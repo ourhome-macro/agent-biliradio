@@ -13,6 +13,7 @@ from error_code import APIError, ErrorCode
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import TimeoutError as RedisTimeoutError
 
+from .bitmap import BITMAP_TTL, PUBLISH, READ, bitmap_keys, validate_reaction
 from .metrics import count
 
 _UNLOCK = "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) end return 0"
@@ -23,15 +24,6 @@ if current then
   if ok and tonumber(v.version)>tonumber(ARGV[1]) then return 0 end
 end
 redis.call('set',KEYS[1],ARGV[2],'EX',ARGV[3]); return 1
-"""
-_REACTION = """
-local current=redis.call('get',KEYS[1])
-if current then
-  local ok,v=pcall(cjson.decode,current)
-  if ok and tonumber(v.version)>tonumber(ARGV[1]) then return 0 end
-end
-redis.call('set',KEYS[1],ARGV[2],'EX',300)
-redis.call('hset',KEYS[2],ARGV[3],ARGV[4]);redis.call('expire',KEYS[2],300);return 1
 """
 
 
@@ -81,8 +73,7 @@ class FeedCache:
         with self._redis_state_lock:
             recovering = self._redis_retry_at > 0
             if recovering and (
-                self._redis_probe_running
-                or (not probe and time.monotonic() < self._redis_retry_at)
+                self._redis_probe_running or (not probe and time.monotonic() < self._redis_retry_at)
             ):
                 raise RedisConnectionError("Feed cache Redis circuit is temporarily open")
             if recovering:
@@ -240,7 +231,8 @@ class FeedCache:
         try:
             if self.redis:
                 self._redis_call(
-                    "eval", _PUBLISH,
+                    "eval",
+                    _PUBLISH,
                     1,
                     f"{self.prefix}:counter:{content_id}",
                     value["version"],
@@ -251,23 +243,66 @@ class FeedCache:
             count("projection", "redis_error")
             raise
 
-    def publish_reaction(self, user_id: str, content_id: str, state: str, version: int):
-        key = f"{self.prefix}:reaction:{user_id}:{content_id}"
+    def publish_reaction(
+        self, user_id: str, content_id: str, state: str, version: int, *, bitmap_id: int
+    ):
+        validate_reaction(state, version)
+        keys, offset = bitmap_keys(self.prefix, content_id, bitmap_id)
         try:
             if self.redis:
-                self._redis_call(
-                    "eval", _REACTION,
-                    2,
-                    key,
-                    f"{self.prefix}:reactions:{user_id}",
-                    version,
-                    json.dumps({"version": version, "state": state}),
-                    content_id,
-                    state,
+                return bool(
+                    self._redis_call(
+                        "eval",
+                        PUBLISH,
+                        4,
+                        *keys,
+                        offset,
+                        str(version),
+                        state,
+                        BITMAP_TTL,
+                    )
                 )
+            return False
         except Exception:
             count("projection", "redis_error")
             raise
+
+    def reaction(
+        self, user_id: str, content_id: str, loader, *, bitmap_id: int | None, expected_version: int
+    ):
+        if bitmap_id is not None:
+            keys, offset = bitmap_keys(self.prefix, content_id, bitmap_id)
+            try:
+                value = self._redis_call("eval", READ, 4, *keys, offset)
+                # Bind the projection to the SQL relationship snapshot. A stale
+                # or even newer cached state cannot alter that authorized result.
+                if value and int(value[0]) == expected_version:
+                    state = value[1].decode("ascii") if isinstance(value[1], bytes) else value[1]
+                    validate_reaction(state, int(value[0]))
+                    count("reaction", "bitmap_hit")
+                    return {"version": int(value[0]), "state": state}
+            except Exception:
+                count("reaction", "redis_error")
+        if not self._fallback.acquire(blocking=False):
+            raise APIError(ErrorCode.CONFLICT, "Reaction query capacity exceeded", 503)
+        try:
+            result = dict(loader())
+            validate_reaction(result["state"], result["version"])
+        finally:
+            self._fallback.release()
+        if bitmap_id is not None:
+            try:
+                self.publish_reaction(
+                    user_id,
+                    content_id,
+                    result["state"],
+                    result["version"],
+                    bitmap_id=bitmap_id,
+                )
+            except Exception:
+                pass
+        count("reaction", "bitmap_miss")
+        return result
 
     def counter(self, content_id: str, loader, *, min_version=0):
         try:

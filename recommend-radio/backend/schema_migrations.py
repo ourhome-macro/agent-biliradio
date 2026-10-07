@@ -6,7 +6,7 @@ from alembic import command
 from alembic.config import Config
 from filelock import FileLock
 
-HEAD = "radio_007"
+HEAD = "radio_008"
 ROOT = Path(__file__).resolve().parent
 
 
