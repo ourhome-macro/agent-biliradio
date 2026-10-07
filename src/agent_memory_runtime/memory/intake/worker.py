@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from time import sleep
@@ -22,6 +24,8 @@ from agent_memory_runtime.memory.intake.models import (
 if TYPE_CHECKING:
     from agent_memory_runtime.runtime import AgentMemoryRuntime
 
+LOGGER = logging.getLogger(__name__)
+
 
 class SQLiteDreamStore:
     def __init__(self, path_or_manager: object) -> None:
@@ -37,14 +41,18 @@ class SQLiteDreamStore:
         agent_id: str | None = None,
         session_id: str | None = None,
         reason: str = "scheduled",
+        mode: str = "deep",
         max_attempts: int = 3,
     ) -> DreamJob:
+        if mode not in {"micro", "batch", "deep"}:
+            raise ValueError("unsupported dream mode")
         now = _now()
         job_id = _job_id(
             tenant_id=tenant_id,
             user_id=user_id,
             agent_id=agent_id,
             session_id=session_id,
+            mode=mode,
         )
         payload = {
             "tenant_id": tenant_id,
@@ -71,9 +79,19 @@ class SQLiteDreamStore:
                     updated_at=now,
                     available_at=now,
                     max_attempts=max_attempts,
+                    mode=mode,
                 )
             else:
                 existing = _job_from_dict(json.loads(row[0]))
+                if existing.status == "pending":
+                    return existing
+                if existing.status == "running":
+                    job = replace(existing, rerun_requested=True, updated_at=now)
+                    connection.execute(
+                        "UPDATE dream_jobs SET updated_at = ?, payload = ? WHERE job_id = ?",
+                        (now, _serialize(job.to_dict()), job_id),
+                    )
+                    return job
                 job = replace(
                     existing,
                     tenant_id=tenant_id,
@@ -91,6 +109,8 @@ class SQLiteDreamStore:
                     lease_expires_at=None,
                     error_type=None,
                     error_hash=None,
+                    mode=mode,
+                    rerun_requested=False,
                 )
             connection.execute(
                 """
@@ -127,15 +147,34 @@ class SQLiteDreamStore:
         lease_until = _iso(datetime.now(UTC) + timedelta(seconds=lease_seconds))
         token = str(uuid4())
         with self._manager.connection() as connection:
+            expired = connection.execute(
+                "SELECT job_id, payload FROM dream_jobs WHERE status = 'running' "
+                "AND json_extract(payload, '$.lease_expires_at') <= ?",
+                (now,),
+            ).fetchall()
+            for expired_job_id, raw in expired:
+                stale = _job_from_dict(json.loads(raw))
+                if stale.attempts >= stale.max_attempts:
+                    dead = replace(
+                        stale, status="dead_letter", updated_at=now,
+                        lease_owner=None, lease_token=None, lease_expires_at=None,
+                        error_type="LeaseExpired",
+                    )
+                    connection.execute(
+                        "UPDATE dream_jobs SET status = ?, updated_at = ?, payload = ? "
+                        "WHERE job_id = ?",
+                        (dead.status, now, _serialize(dead.to_dict()), expired_job_id),
+                    )
             row = connection.execute(
                 """
                 SELECT job_id, payload
                 FROM dream_jobs
-                WHERE status = 'pending' AND available_at <= ?
+                WHERE (status = 'pending' AND available_at <= ?)
+                   OR (status = 'running' AND json_extract(payload, '$.lease_expires_at') <= ?)
                 ORDER BY available_at, updated_at, job_id
                 LIMIT 1
                 """,
-                (now,),
+                (now, now),
             ).fetchone()
             if row is None:
                 return None
@@ -148,14 +187,19 @@ class SQLiteDreamStore:
                 lease_owner=worker_id,
                 lease_token=token,
                 lease_expires_at=lease_until,
+                rerun_requested=False,
             )
             connection.execute(
                 """
                 UPDATE dream_jobs
                 SET status = ?, updated_at = ?, payload = ?
-                WHERE job_id = ? AND status = 'pending'
+                WHERE job_id = ? AND (status = 'pending' OR
+                    (status = 'running' AND json_extract(payload, '$.lease_expires_at') <= ?))
                 """,
-                (claimed.status, claimed.updated_at, _serialize(claimed.to_dict()), job.job_id),
+                (
+                    claimed.status, claimed.updated_at,
+                    _serialize(claimed.to_dict()), job.job_id, now,
+                ),
             )
         return claimed
 
@@ -172,13 +216,19 @@ class SQLiteDreamStore:
             error_hash=None,
         )
         with self._manager.connection() as connection:
+            current = self._owned_job(connection, job)
+            if current.rerun_requested:
+                completed = replace(completed, status="pending", available_at=now)
             connection.execute(
                 """
                 UPDATE dream_jobs
-                SET status = ?, updated_at = ?, payload = ?
+                SET status = ?, available_at = ?, updated_at = ?, payload = ?
                 WHERE job_id = ?
                 """,
-                (completed.status, now, _serialize(completed.to_dict()), job.job_id),
+                (
+                    completed.status, completed.available_at, now,
+                    _serialize(completed.to_dict()), job.job_id,
+                ),
             )
             self._put_checkpoint(connection, job, checkpoint, updated_at=now)
         return completed
@@ -198,6 +248,8 @@ class SQLiteDreamStore:
             error_hash=secure_hash(str(error)),
         )
         with self._manager.connection() as connection:
+            current = self._owned_job(connection, job)
+            failed = replace(failed, rerun_requested=current.rerun_requested)
             connection.execute(
                 """
                 UPDATE dream_jobs
@@ -213,6 +265,27 @@ class SQLiteDreamStore:
                 ),
             )
         return failed
+
+    def _owned_job(self, connection: object, job: DreamJob) -> DreamJob:
+        row = connection.execute(
+            "SELECT payload FROM dream_jobs WHERE job_id = ?", (job.job_id,)
+        ).fetchone()
+        if row is None:
+            raise RuntimeError("dream job disappeared")
+        current = _job_from_dict(json.loads(row[0]))
+        if current.status != "running" or current.lease_token != job.lease_token:
+            raise RuntimeError("dream job lease lost")
+        return current
+
+    def renew(self, job: DreamJob, *, lease_seconds: float) -> None:
+        until = _iso(datetime.now(UTC) + timedelta(seconds=lease_seconds))
+        with self._manager.connection() as connection:
+            current = self._owned_job(connection, job)
+            renewed = replace(current, lease_expires_at=until)
+            connection.execute(
+                "UPDATE dream_jobs SET payload = ? WHERE job_id = ?",
+                (_serialize(renewed.to_dict()), job.job_id),
+            )
 
     def checkpoint_for(self, job: DreamJob) -> DreamCheckpoint:
         with self._manager.read_connection() as connection:
@@ -366,6 +439,8 @@ class AutoDreamWorker:
         worker_id: str | None = None,
         lease_seconds: float = 30.0,
         poll_interval_seconds: float = 1.0,
+        before_poll: Callable[[], object] | None = None,
+        on_applied: Callable[[str | None], object] | None = None,
     ) -> None:
         self.runtime = runtime
         self.store = store
@@ -373,6 +448,8 @@ class AutoDreamWorker:
         self.worker_id = worker_id or f"auto-dream-{uuid4()}"
         self.lease_seconds = lease_seconds
         self.poll_interval_seconds = poll_interval_seconds
+        self.before_poll = before_poll
+        self.on_applied = on_applied
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -385,14 +462,53 @@ class AutoDreamWorker:
             return AutoDreamRunReport(job=None)
         try:
             checkpoint = self.store.checkpoint_for(job)
+            list_events_since = getattr(self.runtime.event_store, "list_events_since", None)
+            events = (
+                list_events_since(
+                    checkpoint.last_processed_sequence,
+                    tenant_id=job.tenant_id,
+                    user_id=job.user_id,
+                    agent_id=job.agent_id,
+                    session_id=job.session_id,
+                    limit=500,
+                )
+                if callable(list_events_since)
+                else _events_for_job(self.runtime.event_store.list_events(), job)
+            )
+            list_records_for_scope = getattr(
+                self.runtime.memory_store, "list_records_for_scope", None
+            )
+            records = (
+                list_records_for_scope(
+                    tenant_id=job.tenant_id, user_id=job.user_id, agent_id=job.agent_id
+                )
+                if callable(list_records_for_scope)
+                else _records_for_job(self.runtime.memory_store.list_records(), job)
+            )
+            context_events = None
+            recent_for_scope = getattr(self.runtime.event_store, "recent_events_for_scope", None)
+            if (
+                events and job.mode == "deep" and job.user_id is not None
+                and callable(recent_for_scope)
+            ):
+                context_events = recent_for_scope(
+                    tenant_id=job.tenant_id,
+                    user_id=job.user_id,
+                    agent_id=job.agent_id,
+                    since=_iso(datetime.now(UTC) - timedelta(days=14)),
+                    through_sequence=events[-1].sequence,
+                )
             report = self.analyzer.analyze(
-                events=_events_for_job(self.runtime.event_store.list_events(), job),
-                records=_records_for_job(self.runtime.memory_store.list_records(), job),
+                events=events,
+                records=records,
                 checkpoint=checkpoint,
                 dream_run_id=job.job_id,
+                mode=job.mode,
+                context_events=context_events,
             )
             applied = review = rejected = conflicts = failed = 0
             for proposal in report.proposals:
+                self.store.renew(job, lease_seconds=self.lease_seconds)
                 if proposal.decision_status == "pending_review":
                     review += 1
                     self.store.append_review(
@@ -404,6 +520,8 @@ class AutoDreamWorker:
                 result = self.runtime.apply_memory_proposal(proposal)
                 if result.status == "succeeded":
                     applied += 1
+                    if self.on_applied is not None:
+                        self.on_applied(job.user_id)
                 elif result.status == "needs_review":
                     review += 1
                     self.store.append_review(proposal, status=result.status, reason=result.reason)
@@ -416,6 +534,14 @@ class AutoDreamWorker:
                 else:
                     failed += 1
                     self.store.append_review(proposal, status=result.status, reason=result.reason)
+            if conflicts or failed:
+                raise RuntimeError("Auto Dream proposals need retry before checkpoint")
+            if len(events) >= 500:
+                self.store.schedule(
+                    tenant_id=job.tenant_id, user_id=job.user_id,
+                    agent_id=job.agent_id, session_id=job.session_id,
+                    mode=job.mode, reason="continue_paged_events",
+                )
             completed = self.store.complete(job, report.checkpoint)
             return AutoDreamRunReport(
                 job=completed,
@@ -429,13 +555,22 @@ class AutoDreamWorker:
                 checkpoint=report.checkpoint,
             )
         except Exception as error:
-            failed_job = self.store.fail(job, error)
+            LOGGER.warning(
+                "Auto Dream job failed: job_id=%s error_type=%s",
+                job.job_id, type(error).__name__,
+            )
+            try:
+                failed_job = self.store.fail(job, error)
+            except RuntimeError:
+                failed_job = job
             return AutoDreamRunReport(job=failed_job, analyzed=False, failed=1)
 
     def run_forever(self, *, stop_after_jobs: int | None = None) -> AutoDreamRunReport:
         processed = 0
         totals = AutoDreamRunReport(job=None)
         while not self._stop.is_set() and (stop_after_jobs is None or processed < stop_after_jobs):
+            if self.before_poll is not None:
+                self.before_poll()
             report = self.run_once()
             if report.job is None:
                 sleep(self.poll_interval_seconds)
@@ -509,6 +644,7 @@ def _job_id(
     user_id: str | None,
     agent_id: str | None,
     session_id: str | None,
+    mode: str = "deep",
 ) -> str:
     return "auto-dream:" + secure_hash(
         {
@@ -516,6 +652,7 @@ def _job_id(
             "user_id": user_id,
             "agent_id": agent_id,
             "session_id": session_id,
+            **({"mode": mode} if mode != "deep" else {}),
         }
     )[:24]
 
@@ -526,6 +663,7 @@ def _checkpoint_key(job: DreamJob) -> str:
         user_id=job.user_id,
         agent_id=job.agent_id,
         session_id=job.session_id,
+        mode=job.mode,
     )
 
 
@@ -550,6 +688,8 @@ def _job_from_dict(value: dict[str, object]) -> DreamJob:
         ),
         error_type=None if value.get("error_type") is None else str(value["error_type"]),
         error_hash=None if value.get("error_hash") is None else str(value["error_hash"]),
+        mode=str(value.get("mode") or "deep"),
+        rerun_requested=bool(value.get("rerun_requested", False)),
     )
 
 

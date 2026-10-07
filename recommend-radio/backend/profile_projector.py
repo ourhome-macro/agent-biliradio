@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from agent_memory_runtime.telemetry import traced
+from agent_memory_runtime.agent.sampling import sample_sync
 
 import json
 import os
@@ -113,7 +114,7 @@ class RecommendationOpenAIChatClient:
         if self.json_response:
             kwargs["response_format"] = {"type": "json_object"}
         started = time.perf_counter()
-        completion = client.chat.completions.create(**kwargs)
+        completion = sample_sync(lambda:client.chat.completions.create(**kwargs),model=self.model,provider="recommendation")
         return _ChatResponse(content=completion.choices[0].message.content or "", latency_ms=(time.perf_counter() - started) * 1000)
 
     @traced('llm.route')
@@ -134,7 +135,7 @@ class RecommendationOpenAIChatClient:
             api_key=api_key,
         )
         started = time.perf_counter()
-        completion = client.chat.completions.create(
+        completion = sample_sync(lambda:client.chat.completions.create(
             model=self.model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -147,7 +148,7 @@ class RecommendationOpenAIChatClient:
             max_tokens=min(self.max_tokens, 800),
             extra_body=self.extra_body,
             stream=False,
-        )
+        ),model=self.model,provider="recommendation")
         calls = completion.choices[0].message.tool_calls or []
         if len(calls) != 1 or calls[0].type != "function":
             raise ValueError("router LLM did not return exactly one function call")
@@ -238,6 +239,16 @@ class ProfileProjector:
         projection = ProfileProjection(profile=profile, memories=memories, trace_id=trace_id, llm_latency_ms=self._last_llm_latency_ms)
         self._cache[cache_key] = (time.time(), projection)
         return projection
+
+    def project_committed(self, *, user_id: str, scene: str,
+                          fallback_profile: MusicProfile) -> ProfileProjection:
+        """Serving snapshot from governed memories without model synthesis."""
+        memories = self.memory_retriever.retrieve_memories(user_id, scene, limit=16)
+        profile = overlay_profile_snapshot(
+            self._fallback_with_memories(fallback_profile, memories), fallback_profile
+        )
+        return ProfileProjection(profile=profile, memories=memories,
+                                 trace_id=f"profile:committed:{user_id}:{scene}")
 
     def _project_with_llm(
         self,

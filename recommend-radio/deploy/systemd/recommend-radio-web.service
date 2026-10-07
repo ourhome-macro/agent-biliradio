@@ -1,0 +1,21 @@
+[Unit]
+Description=Recommend Radio Python Web and SSE
+Requires=recommend-radio-migrate.service
+After=recommend-radio-migrate.service network-online.target
+
+[Service]
+Type=simple
+User=radio
+Group=radio
+WorkingDirectory=/opt/agent-memory-runtime/recommend-radio/backend
+EnvironmentFile=/etc/recommend-radio/radio.env
+Environment=AMEM_TRANSPORT=embedded
+Environment=AUTO_DREAM_ENABLED=false
+Environment=SSE_GATEWAY_INTERNAL_URL=
+ExecStart=/opt/agent-memory-runtime/.venv/bin/python -m uvicorn web_asgi:app --host 127.0.0.1 --port 3000 --workers 1
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

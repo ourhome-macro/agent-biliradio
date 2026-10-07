@@ -145,6 +145,7 @@ class AmemBridge:
         from agent_memory_runtime.exceptions import StoreError
         from agent_memory_runtime.memory.embeddings.environment import load_embedding_environment
         from agent_memory_runtime.memory.intake import MemoryIntakeService
+        from agent_memory_runtime.memory.intake.triggers import AutoDreamTriggers
         from agent_memory_runtime.memory.stores import SQLiteStoreBundle
         from agent_memory_runtime.runtime import AgentMemoryRuntime
 
@@ -173,12 +174,24 @@ class AmemBridge:
             )
             bundle = SQLiteStoreBundle(path, embedding_provider=embedding_env.provider)
         runtime_config = RuntimeConfig()
-        if embedding_env.min_similarity is not None:
+        semantic_timeout = os.getenv("AMEM_SEMANTIC_TIMEOUT_MS", "").strip()
+        if embedding_env.min_similarity is not None or semantic_timeout:
+            timeout_ms = (
+                int(semantic_timeout)
+                if semantic_timeout else runtime_config.hybrid_retrieval.semantic_timeout_ms
+            )
+            if not 1 <= timeout_ms <= 30_000:
+                raise ValueError("AMEM_SEMANTIC_TIMEOUT_MS must be between 1 and 30000")
             runtime_config = replace(
                 runtime_config,
                 hybrid_retrieval=replace(
                     runtime_config.hybrid_retrieval,
-                    min_semantic_similarity=embedding_env.min_similarity,
+                    min_semantic_similarity=(
+                        embedding_env.min_similarity
+                        if embedding_env.min_similarity is not None
+                        else runtime_config.hybrid_retrieval.min_semantic_similarity
+                    ),
+                    semantic_timeout_ms=timeout_ms,
                 ),
             )
         runtime = AgentMemoryRuntime(
@@ -189,6 +202,7 @@ class AmemBridge:
             audit_store=bundle.audit_store,
             tombstone_store=bundle.tombstone_store,
             transaction_manager=bundle,
+            dream_store=bundle.dream_store,
         )
         self.db_path = path
         self.store_bundle = bundle
@@ -201,11 +215,72 @@ class AmemBridge:
             runtime=runtime,
             intake=MemoryIntakeService(runtime),
         )
+        self.dream_triggers = AutoDreamTriggers(
+            bundle.dream_store,
+            timezone=os.getenv("AUTO_DREAM_TIMEZONE", "Asia/Shanghai"),
+        )
+        self._dream_last_due_scan = 0.0
+        self._dream_cache_invalidator: Any | None = None
+        self._dream_worker_started = False
+
+    def _start_dream_worker(self) -> None:
+        if self._dream_worker_started:
+            return
+        if os.getenv("AUTO_DREAM_ENABLED", "true").strip().lower() not in {
+            "0", "false", "no", "off",
+        }:
+            from agent_memory_runtime.memory.intake.dream import AutoDreamAnalyzer
+
+            self.handle.runtime.start_auto_dream_background(
+                analyzer=AutoDreamAnalyzer(llm_client_factory=self._dream_llm_client),
+                before_poll=self._schedule_due_dreams,
+                on_applied=self._dream_applied,
+            )
+            self._dream_worker_started = True
+
+    def bind_dream_cache_invalidator(self, callback: Any) -> None:
+        self._dream_cache_invalidator = callback
+        self._start_dream_worker()
+
+    def _dream_applied(self, user_id: str | None) -> None:
+        if self._dream_cache_invalidator is not None and user_id is not None:
+            self._dream_cache_invalidator(user_id=user_id)
+
+    def _dream_llm_client(self, user_id: str) -> Any | None:
+        if os.getenv("AUTO_DREAM_LLM_ENABLED", "true").strip().lower() in {"0", "false", "no", "off"}:
+            return None
+        from profile_projector import _default_llm_client
+        from settings_service import SettingsService
+
+        provider = os.getenv("RECOMMEND_LLM_PROVIDER", "deepseek").strip().lower()
+        if provider != "deepseek":
+            return None
+        if SettingsService(user_id=user_id).has_deepseek_api_key():
+            client = _default_llm_client(user_id=user_id)
+            client.max_tokens = min(client.max_tokens, 800)
+            client.timeout_seconds = min(client.timeout_seconds, 12)
+            return client
+        return None
+
+    def _schedule_due_dreams(self) -> None:
+        import time
+
+        now = time.monotonic()
+        if now - self._dream_last_due_scan < 30:
+            return
+        try:
+            self.dream_triggers.schedule_due()
+            self._dream_last_due_scan = now
+        except Exception:
+            LOGGER.exception("Auto Dream due scan failed")
 
     def process_embedding_jobs(self, *, max_jobs: int = 64) -> Any | None:
         if self.embedding_worker is None:
             return None
         return self.embedding_worker.run_until_idle(max_jobs=max(max_jobs, 1))
+
+    def close(self) -> None:
+        self.handle.runtime.close()
 
     @classmethod
     def from_env(cls) -> "AmemBridge | NoopAmemBridge":
@@ -220,7 +295,11 @@ class AmemBridge:
         event = _normalize_event(payload)
         user_id = str(payload.get("userId") or payload.get("user_id") or "legacy-owner")
         session_id = str(payload.get("sessionId") or payload.get("session_id") or PROFILE_SESSION_ID)
-        stored = self._record_event(event, user_id=user_id, session_id=session_id, payload=payload)
+        with self.store_bundle.transaction():
+            stored = self._record_event(event, user_id=user_id, session_id=session_id, payload=payload)
+            modes = self.dream_triggers.record_event(stored)
+        if "micro" in modes:
+            self._dream_applied(user_id)
         return {"enabled": True, "eventId": stored.event_id, "memoryIds": []}
 
     def record_profile_statement(
@@ -472,7 +551,6 @@ class AmemBridge:
     ) -> list[str]:
         track = _track_from_payload(payload)
         entities = _entities_from_track(track, payload)
-        topics = [entity.name for entity in entities]
         uploader_key = _uploader_key(track)
         memory_ids: list[str] = []
 

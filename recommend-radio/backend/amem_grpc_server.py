@@ -36,6 +36,9 @@ class AmemGrpcService(amem_pb2_grpc.AmemServiceServicer):
     ) -> None:
         self.bridge = bridge if bridge is not None else AmemBridge.from_env()
         self.projector = projector if projector is not None else ProfileProjector(self.bridge)
+        bind_invalidator = getattr(self.bridge, "bind_dream_cache_invalidator", None)
+        if callable(bind_invalidator):
+            bind_invalidator(self.projector.clear_cache)
         self._embedding_stop = threading.Event()
         self._embedding_thread: threading.Thread | None = None
         if callable(getattr(self.bridge, "process_embedding_jobs", None)):
@@ -55,6 +58,14 @@ class AmemGrpcService(amem_pb2_grpc.AmemServiceServicer):
                 LOGGER.warning("AMEM embedding worker iteration failed: %s", exc)
                 processed = 0
             self._embedding_stop.wait(0.1 if processed else 1.0)
+
+    def close(self) -> None:
+        self._embedding_stop.set()
+        if self._embedding_thread is not None:
+            self._embedding_thread.join(timeout=5)
+        close_bridge = getattr(self.bridge, "close", None)
+        if callable(close_bridge):
+            close_bridge()
 
     def RecordBehavior(self, request: Any, context: grpc.ServicerContext) -> Any:
         payload = _payload_from_json(request.payload_json)
@@ -161,7 +172,8 @@ def build_server(service: AmemGrpcService | None = None) -> grpc.Server:
 def serve() -> None:
     logging.basicConfig(level=_log_level(), format="%(asctime)s %(levelname)s %(name)s %(message)s")
     addr = os.getenv("AMEM_GRPC_BIND", "0.0.0.0:9090").strip() or "0.0.0.0:9090"
-    server = build_server()
+    service = AmemGrpcService()
+    server = build_server(service)
     bound_port = server.add_insecure_port(addr)
     if bound_port == 0:
         raise RuntimeError(f"failed to bind AMEM gRPC server on {addr}")
@@ -183,6 +195,7 @@ def serve() -> None:
             time.sleep(0)
     finally:
         server.stop(0)
+        service.close()
 
 
 def _profile_to_response(profile: MusicProfile, *, profile_llm_api_ms: float = 0.0, profile_total_ms: float = 0.0) -> Any:

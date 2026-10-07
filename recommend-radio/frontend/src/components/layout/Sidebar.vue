@@ -93,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useLibraryStore } from '@/stores/libraryStore'
 import AppIcon from '@/components/base/AppIcon.vue'
@@ -108,12 +108,16 @@ const playlistName = ref('我的歌单')
 const playlistError = ref('')
 const playlistNameInput = ref<HTMLInputElement | null>(null)
 
-const navItems = [
+import { fetchSettings } from '@/api/client'
+const feedEnabled = ref(false)
+onMounted(() => { void fetchSettings().then(value => { feedEnabled.value = !!value.feedEnabled }).catch(() => undefined) })
+const navItems = computed(() => [
   { to: '/', label: '发现', icon: 'home' },
+  ...(feedEnabled.value ? [{ to: '/feed', label: '音乐视频', icon: 'play' }] : []),
   { to: '/search', label: '搜索', icon: 'search' },
   { to: '/favorites', label: 'B 站收藏夹', icon: 'star' },
   { to: '/agent', label: '音乐助手', icon: 'message' },
-]
+])
 
 function isActive(path: string): boolean {
   if (path === '/') return route.path === '/'

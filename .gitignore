@@ -13,3 +13,8 @@ tests/
 !recommend-radio/backend/tests/*.py
 examples/
 benchmarks/
+
+# Local infrastructure binaries and business data
+/minio.exe
+/minioData/
+/Redis-*/

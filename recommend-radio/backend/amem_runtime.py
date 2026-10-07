@@ -15,4 +15,8 @@ def build_amem_runtime() -> tuple[Any, Any]:
         bridge = AmemGrpcBridge.from_env()
         return wrap_behavior_bridge(bridge), GrpcProfileProjector(bridge)
     bridge = AmemBridge.from_env()
-    return wrap_behavior_bridge(bridge), ProfileProjector(bridge)
+    projector = ProfileProjector(bridge)
+    bind_invalidator = getattr(bridge, "bind_dream_cache_invalidator", None)
+    if callable(bind_invalidator):
+        bind_invalidator(projector.clear_cache)
+    return wrap_behavior_bridge(bridge), projector

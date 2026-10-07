@@ -3,6 +3,11 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
+from agent_memory_runtime.agent.sampling import (
+    begin_provider_sampling,
+    finish_provider_sampling,
+    sample_sync,
+)
 from agent_memory_runtime.config import LLMConfig
 from agent_memory_runtime.exceptions import LLMConfigurationError, LLMRequestError, LLMResponseError
 from agent_memory_runtime.llm.models import LLMResponse, LLMStreamEvent
@@ -17,8 +22,14 @@ class OpenAICompatibleChatClient:
 
     def complete(self, *, system_prompt: str, user_prompt: str) -> LLMResponse:
         try:
-            response = self._get_client().chat.completions.create(
-                **self._request(system_prompt=system_prompt, user_prompt=user_prompt, stream=False)
+            response = sample_sync(
+                lambda: self._get_client().chat.completions.create(
+                    **self._request(
+                        system_prompt=system_prompt, user_prompt=user_prompt, stream=False
+                    )
+                ),
+                model=self.config.model,
+                provider=self.config.provider,
             )
         except (LLMConfigurationError, LLMResponseError):
             raise
@@ -48,6 +59,32 @@ class OpenAICompatibleChatClient:
         system_prompt: str,
         user_prompt: str,
     ) -> Iterator[LLMStreamEvent]:
+        record = begin_provider_sampling(model=self.config.model, provider=self.config.provider)
+        try:
+            for event in self._stream_complete_impl(
+                system_prompt=system_prompt, user_prompt=user_prompt, provider_record=record
+            ):
+                if event.type == "completed":
+                    record.update(
+                        status="completed",
+                        model=event.model,
+                        responseId=event.response_id,
+                        inputTokens=event.input_tokens,
+                        outputTokens=event.output_tokens,
+                        usageKnown=event.input_tokens is not None
+                        and event.output_tokens is not None,
+                    )
+                    finish_provider_sampling(record)
+                yield event
+        except BaseException as error:
+            record["errorType"] = type(error).__name__
+            raise
+        finally:
+            finish_provider_sampling(record)
+
+    def _stream_complete_impl(
+        self, *, system_prompt: str, user_prompt: str, provider_record: dict
+    ) -> Iterator[LLMStreamEvent]:
         try:
             chunks = self._get_client().chat.completions.create(
                 **self._request(system_prompt=system_prompt, user_prompt=user_prompt, stream=True)
@@ -59,39 +96,52 @@ class OpenAICompatibleChatClient:
                 f"{self.config.provider} streaming request failed: {type(error).__name__}."
             ) from error
 
-        model = self.config.model
-        response_id: str | None = None
-        input_tokens: int | None = None
-        output_tokens: int | None = None
-        emitted_content = False
-        for chunk in chunks:
-            response_id = _optional_str(getattr(chunk, "id", response_id))
-            model = str(getattr(chunk, "model", None) or model)
-            usage = getattr(chunk, "usage", None)
-            if usage is not None:
-                input_tokens = _optional_int(getattr(usage, "prompt_tokens", None))
-                output_tokens = _optional_int(getattr(usage, "completion_tokens", None))
+        try:
+            model = self.config.model
+            response_id: str | None = None
+            input_tokens: int | None = None
+            output_tokens: int | None = None
+            emitted_content = False
+            for chunk in chunks:
+                response_id = _optional_str(getattr(chunk, "id", response_id))
+                model = str(getattr(chunk, "model", None) or model)
+                provider_record.update(model=model, responseId=response_id)
+                usage = getattr(chunk, "usage", None)
+                if usage is not None:
+                    input_tokens = _optional_int(getattr(usage, "prompt_tokens", None))
+                    output_tokens = _optional_int(getattr(usage, "completion_tokens", None))
+                    provider_record.update(
+                        inputTokens=input_tokens,
+                        outputTokens=output_tokens,
+                        usageKnown=input_tokens is not None and output_tokens is not None,
+                    )
 
-            for delta in _chunk_deltas(chunk):
-                emitted_content = True
-                yield LLMStreamEvent(
-                    type="token",
-                    delta=delta,
-                    model=model,
-                    response_id=response_id,
+                for delta in _chunk_deltas(chunk):
+                    emitted_content = True
+                    yield LLMStreamEvent(
+                        type="token",
+                        delta=delta,
+                        model=model,
+                        response_id=response_id,
+                    )
+
+            provider_record["status"] = "completed"
+            finish_provider_sampling(provider_record)
+            if not emitted_content:
+                raise LLMResponseError(
+                    f"{self.config.provider} returned an empty streaming assistant message."
                 )
-
-        if not emitted_content:
-            raise LLMResponseError(
-                f"{self.config.provider} returned an empty streaming assistant message."
+            yield LLMStreamEvent(
+                type="completed",
+                model=model,
+                response_id=response_id,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
-        yield LLMStreamEvent(
-            type="completed",
-            model=model,
-            response_id=response_id,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-        )
+        finally:
+            close = getattr(chunks, "close", None)
+            if callable(close):
+                close()
 
     def _request(self, *, system_prompt: str, user_prompt: str, stream: bool) -> dict[str, object]:
         request: dict[str, object] = {
@@ -108,6 +158,8 @@ class OpenAICompatibleChatClient:
             request["max_tokens"] = self.config.max_tokens
         if self.config.extra_body:
             request["extra_body"] = self.config.extra_body
+        if stream:
+            request["stream_options"] = {"include_usage": True}
         return request
 
     def _get_client(self) -> Any:

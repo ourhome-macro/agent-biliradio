@@ -1,0 +1,90 @@
+# docker compose -f docker-compose.full.yml -f docker-compose.full.feed.yml up -d
+services:
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - feed-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  backend:
+    command: ["python", "-m", "uvicorn", "web_asgi:app", "--host", "0.0.0.0", "--port", "5000"]
+    environment: &feed-env
+      FEED_ENABLED: "${FEED_ENABLED:-false}"
+      FEED_SESSION_SECONDS: "${FEED_SESSION_SECONDS:-1800}"
+      FEED_REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
+      MINIO_PUBLIC_ENDPOINT: "${MINIO_PUBLIC_ENDPOINT:-http://127.0.0.1:9000}"
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-}"
+      MEDIA_BUCKET: "${MEDIA_BUCKET:-radio-media}"
+      MEDIA_WORKDIR: /app/media-work
+      MEDIA_MAX_BYTES: "${MEDIA_MAX_BYTES:-2147483648}"
+      MEDIA_MAX_DURATION_SECONDS: "${MEDIA_MAX_DURATION_SECONDS:-3600}"
+      MEDIA_SCRATCH_BYTES: "${MEDIA_SCRATCH_BYTES:-10737418240}"
+      MEDIA_STORAGE_BYTES: "${MEDIA_STORAGE_BYTES:-107374182400}"
+      MEDIA_PLAYBACK_LEASE_SECONDS: "${MEDIA_PLAYBACK_LEASE_SECONDS:-15}"
+      MEDIA_CANCEL_GRACE_SECONDS: "${MEDIA_CANCEL_GRACE_SECONDS:-3}"
+      MEDIA_IMPORT_HEARTBEAT_SECONDS: "${MEDIA_IMPORT_HEARTBEAT_SECONDS:-10}"
+      MEDIA_IMPORT_LEASE_SECONDS: "${MEDIA_IMPORT_LEASE_SECONDS:-120}"
+      MEDIA_FETCH_MAX_ATTEMPTS: "${MEDIA_FETCH_MAX_ATTEMPTS:-3}"
+      MEDIA_SIGNED_SECONDS: "${MEDIA_SIGNED_SECONDS:-7200}"
+      MEDIA_IMPORT_BUDGET_SECONDS: "${MEDIA_IMPORT_BUDGET_SECONDS:-3600}"
+    volumes:
+      - media-work:/app/media-work
+    depends_on:
+      redis:
+        condition: service_healthy
+  event-worker:
+    environment: *feed-env
+  task-worker:
+    environment: *feed-env
+  media-worker:
+    build:
+      context: ..
+      dockerfile: recommend-radio/backend/Dockerfile
+    command: ["python", "-m", "celery", "-A", "task_app", "worker", "--loglevel=INFO", "--concurrency=${MEDIA_WORKER_CONCURRENCY:-2}", "--prefetch-multiplier=1", "--hostname=media@%h", "-Q", "radio.media.v1"]
+    restart: unless-stopped
+    environment:
+      <<: *feed-env
+      APP_DATA_DIR: /app/data
+      REQUIRE_DB_MIGRATION: "1"
+      RABBITMQ_ENABLED: "true"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: "${RABBITMQ_USER:-radio}"
+      RABBITMQ_PASSWORD: "${RABBITMQ_PASSWORD:-radio_dev_password}"
+      RABBITMQ_VHOST: "${RABBITMQ_VHOST:-/}"
+      AMEM_ENABLED: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    volumes:
+      - ./server-data:/app/data
+      - media-work:/app/media-work
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    stop_grace_period: 30s
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "python -m celery -A task_app inspect ping -d media@$$HOSTNAME --timeout=3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+volumes:
+  media-work:
+  feed-redis-data:

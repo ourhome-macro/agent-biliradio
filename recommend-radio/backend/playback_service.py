@@ -141,6 +141,7 @@ class PlaybackService:
             self.library.add_recent(track, position_ms, listen_ms, completed)
 
         return {
+            "eventId": event_key,
             "sessionId": session_id,
             "trackId": track_id,
             "positionMs": position_ms,

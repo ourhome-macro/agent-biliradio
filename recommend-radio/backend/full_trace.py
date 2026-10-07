@@ -17,6 +17,8 @@ _CURRENT_TRACE_ID: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "recommend_radio_trace_id",
     default=None,
 )
+_CURRENT_TRACE_DB = contextvars.ContextVar("radio_trace_db",default=None)
+_CURRENT_TRACE_OBJECT = contextvars.ContextVar("radio_trace_object",default=None)
 _SENSITIVE_KEYS = {
     "authorization",
     "cookie",
@@ -144,6 +146,8 @@ class FullTrace:
         )
         self._otel_scope.__enter__()
         self._token = _CURRENT_TRACE_ID.set(self.trace_id)
+        self._db_token = _CURRENT_TRACE_DB.set(self.db_path)
+        self._object_token = _CURRENT_TRACE_OBJECT.set(self)
         self._batch_depth += 1
         return self
 
@@ -157,6 +161,10 @@ class FullTrace:
         if self._token is not None:
             _CURRENT_TRACE_ID.reset(self._token)
             self._token = None
+        if hasattr(self,"_db_token"):
+            _CURRENT_TRACE_DB.reset(self._db_token)
+        if hasattr(self,"_object_token"):
+            _CURRENT_TRACE_OBJECT.reset(self._object_token)
         if hasattr(self, "_otel_scope"):
             self._otel_scope.__exit__(exc_type, exc_value, traceback)
         return False
@@ -364,6 +372,33 @@ class FullTrace:
 
 def hash_text(value: str) -> str:
     return hashlib.sha256(str(value or "").encode("utf-8")).hexdigest()
+
+
+def record_sampling(record):
+    """Raw provider response usage survives a subsequent business parser failure."""
+    trace_id,db_path=current_trace_id(),_CURRENT_TRACE_DB.get()
+    if not trace_id or not db_path:
+        return
+    trace=_CURRENT_TRACE_OBJECT.get()
+    if trace is None or trace.trace_id != trace_id:
+        trace=FullTrace.resume(db_path,trace_id)
+    import os
+    cost=None
+    try:
+        input_price=float(os.environ["RECOMMEND_INPUT_COST_PER_MILLION_USD"])
+        output_price=float(os.environ["RECOMMEND_OUTPUT_COST_PER_MILLION_USD"])
+        import math
+        if record["usageKnown"] and math.isfinite(input_price) and math.isfinite(output_price) and input_price>=0 and output_price>=0:
+            cost=round(((record.get("inputTokens") or 0)*input_price+(record.get("outputTokens") or 0)*output_price)/1e6,8)
+    except (KeyError,ValueError):
+        pass
+    trace.record_span("llm.sampling",record["durationMs"],kind="llm",status=record["status"],
+        outputs={"callId":record["callId"],"modelCallId":record.get("modelCallId"),"model":record["model"],"provider":record["provider"],
+                 "responseId":record.get("responseId")},
+        metrics={"inputTokens":record.get("inputTokens") or 0,"outputTokens":record.get("outputTokens") or 0,
+                 "usageKnown":bool(record["usageKnown"]),"attempt":record["attempt"],"usageAuthoritative":True,
+                 "costUsd":cost,"costKnown":cost is not None},
+        error_type=record.get("errorType"))
 
 
 def load_trace_tree(db_path: str, trace_id: str) -> dict[str, Any]:

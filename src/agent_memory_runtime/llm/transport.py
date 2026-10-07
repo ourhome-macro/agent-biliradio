@@ -42,7 +42,8 @@ def get_openai_client(
         if client is None:
             from openai import OpenAI
 
-            client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout_seconds)
+            # Every provider attempt is explicit and budgeted by its caller.
+            client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout_seconds, max_retries=0)
             _clients[key] = client
         return client
 

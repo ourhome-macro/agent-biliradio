@@ -61,11 +61,11 @@ class PersistedAgentTraceObserver:
             )
 
             if event_type in {"model.started", "tool.started"}:
-                identifier = str(data.get("call_id") or data.get("turn") or event.sequence)
+                identifier = str(data.get("model_call_id") or data.get("call_id") or data.get("turn") or event.sequence)
                 self._starts[(run_id, event_type.split(".", 1)[0], identifier)] = perf_counter()
-            elif event_type in {"model.completed", "tool.completed"}:
-                kind = event_type.split(".", 1)[0]
-                identifier = str(data.get("call_id") or data.get("turn") or event.sequence)
+            elif event_type in {"model.completed", "tool.completed", "sampling.failed"}:
+                kind = "model" if event_type == "sampling.failed" else event_type.split(".", 1)[0]
+                identifier = str(data.get("model_call_id") or data.get("call_id") or data.get("turn") or event.sequence)
                 started = self._starts.pop((run_id, kind, identifier), None)
                 duration_ms = 0.0 if started is None else (perf_counter() - started) * 1000
                 trace.record_span(
@@ -82,6 +82,9 @@ class PersistedAgentTraceObserver:
                         "inputTokens": int(data.get("input_tokens") or 0),
                         "outputTokens": int(data.get("output_tokens") or 0),
                         "attempts": int(data.get("attempts") or 0),
+                        "executionKind": data.get("execution_kind"),
+                        "usageKnown": data.get("usage_known"),
+                        "costUsd": data.get("cost_usd"),
                     },
                     error_type=(None if not data.get("error_type") else str(data["error_type"])),
                 )

@@ -13,6 +13,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
+from opentelemetry.trace import Status, StatusCode
 
 from agent_memory_runtime.telemetry import span
 
@@ -86,7 +87,7 @@ async def drive_graph(runtime, run, *, factory, token, policy):
             return route(progress)
         tools = runtime._resolve_tools(progress.run.request, policy)
         call = progress.checkpoint.pending_tool_calls[0]
-        with span("agent.tool", attributes={"tool.name": call.name}):
+        with span("agent.tool", attributes={"tool.name": call.name}) as current:
             async for event in runtime._process_tool_call(
                 progress,
                 call,
@@ -95,6 +96,11 @@ async def drive_graph(runtime, run, *, factory, token, policy):
                 factory=factory,
                 token=token,
             ):
+                if event.type in {"tool.blocked", "tool.rejected"} or (
+                    event.type == "tool.completed" and event.data.get("status") != "succeeded"
+                ):
+                    current.set_status(Status(StatusCode.ERROR))
+                    current.set_attribute("error.type", event.data.get("error_type") or "ToolFailure")
                 get_stream_writer()(await runtime._publish(event))
         if progress.paused:
             interrupt({"run_id": run.run_id, "status": progress.run.status.value})

@@ -1,0 +1,24 @@
+[Unit]
+Description=Recommend Radio media import worker
+Requires=recommend-radio-migrate.service
+After=recommend-radio-migrate.service network-online.target
+
+[Service]
+Type=simple
+User=radio
+Group=radio
+WorkingDirectory=/opt/agent-memory-runtime/recommend-radio/backend
+EnvironmentFile=/etc/recommend-radio/radio.env
+Environment=AMEM_TRANSPORT=embedded
+Environment=AMEM_ENABLED=false
+Environment=AUTO_DREAM_ENABLED=false
+Environment=RADIO_OUTBOX_EMBEDDED=false
+Environment=JOB_TRANSPORT=redis_stream
+Environment=RABBITMQ_ENABLED=false
+ExecStart=/opt/agent-memory-runtime/.venv/bin/python -m redis_stream_jobs --lanes media --concurrency 2
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target

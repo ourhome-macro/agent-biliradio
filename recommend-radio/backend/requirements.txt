@@ -4,12 +4,17 @@ click==8.1.8
 Authlib==1.7.2
 cryptography>=44.0
 gunicorn==23.0.0
+starlette==0.50.0
+uvicorn==0.40.0
+a2wsgi==1.10.10
 prometheus-client==0.25.0
 pika==1.4.4
 celery==5.6.3
 pydantic==2.12.5
 pydantic-settings==2.12.0
 requests==2.31.0
+minio>=7.2.20,<8
+redis>=5.2,<7
 Werkzeug==3.0.1
 openai>=1.0
 python-dotenv>=1.0

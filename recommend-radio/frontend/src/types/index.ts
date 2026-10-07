@@ -285,6 +285,7 @@ export interface TrackReview {
 }
 
 export interface AppSettings {
+  feedEnabled?: boolean
   audioQualityPreference: AudioQualityPreference
   playbackSpeed: number
 }

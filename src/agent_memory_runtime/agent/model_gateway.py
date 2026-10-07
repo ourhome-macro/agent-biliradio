@@ -14,6 +14,7 @@ from agent_memory_runtime.agent.models import (
     ToolDefinition,
 )
 from agent_memory_runtime.config import LLMConfig
+from agent_memory_runtime.agent.sampling import sample_sync, begin_provider_sampling, finish_provider_sampling
 from agent_memory_runtime.exceptions import (
     LLMConfigurationError,
     LLMRequestError,
@@ -163,6 +164,7 @@ class OpenAICompatibleModelGateway:
         tools: tuple[ToolDefinition, ...],
         metadata: dict[str, Any] | None = None,
     ) -> AsyncIterator[ModelGatewayStreamEvent]:
+        sampling_record = begin_provider_sampling(model=self.config.model, provider=self.config.provider)
         try:
             chunks = await asyncio.to_thread(
                 self._start_stream_sync,
@@ -184,10 +186,12 @@ class OpenAICompatibleModelGateway:
                     break
                 response_id = _optional_str(getattr(chunk, "id", None)) or response_id
                 model = str(getattr(chunk, "model", None) or model)
+                sampling_record.update(model=model, responseId=response_id)
                 usage = getattr(chunk, "usage", None)
                 if usage is not None:
                     input_tokens = _optional_int(getattr(usage, "prompt_tokens", None))
                     output_tokens = _optional_int(getattr(usage, "completion_tokens", None))
+                    sampling_record.update(usageKnown=True, inputTokens=input_tokens, outputTokens=output_tokens)
                 choices = getattr(chunk, "choices", None) or ()
                 if not choices:
                     continue
@@ -204,6 +208,8 @@ class OpenAICompatibleModelGateway:
                     tool_buffers,
                     getattr(delta, "tool_calls", None) or (),
                 )
+            sampling_record.update(status="completed", responseId=response_id, model=model)
+            finish_provider_sampling(sampling_record)
             tool_calls = _stream_tool_calls(tool_buffers)
             content = "".join(content_parts)
             if not content and not tool_calls:
@@ -219,11 +225,16 @@ class OpenAICompatibleModelGateway:
             )
             yield ModelGatewayStreamEvent(type="completed", response=response)
         except (LLMConfigurationError, LLMRequestError, LLMResponseError, ModelProtocolError):
+            sampling_record["errorType"] = "ModelStreamError"
             raise
         except Exception as error:
             raise LLMRequestError(
                 f"{self.config.provider} agent stream failed: {type(error).__name__}."
             ) from error
+        finally:
+            finish_provider_sampling(sampling_record)
+            if "chunks" in locals() and callable(getattr(chunks, "close", None)):
+                await asyncio.to_thread(chunks.close)
 
     def _complete_sync(
         self,
@@ -233,7 +244,8 @@ class OpenAICompatibleModelGateway:
     ) -> ModelResponse:
         request = self._request(messages, tools, stream=False, metadata=metadata)
         try:
-            response = self._get_client().chat.completions.create(**request)
+            response = sample_sync(lambda:self._get_client().chat.completions.create(**request),
+                                   model=self.config.model,provider=self.config.provider)
         except (LLMConfigurationError, ModelProtocolError):
             raise
         except Exception as error:

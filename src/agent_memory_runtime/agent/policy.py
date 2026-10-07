@@ -45,6 +45,7 @@ class AgentPolicy:
     input_cost_per_million_usd: float | None = None
     output_cost_per_million_usd: float | None = None
     max_run_cost_usd: float | None = None
+    max_repeated_tool_failures: int = 3
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -59,6 +60,7 @@ class AgentPolicy:
             frozenset(self.approval_required_tools),
         )
         integer_limits = (
+            self.max_repeated_tool_failures,
             self.max_steps,
             self.max_model_calls,
             self.max_tool_calls,

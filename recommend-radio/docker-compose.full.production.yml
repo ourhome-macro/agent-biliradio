@@ -1,0 +1,80 @@
+services:
+  rabbitmq:
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
+    ports: !reset []
+    expose:
+      - "5672"
+
+  backend:
+    environment:
+      AUTH_MODE: oidc
+      APP_EXTERNAL_URL: https://${APP_DOMAIN:?Set APP_DOMAIN in .env}
+      APP_TRUSTED_HOSTS: ${APP_DOMAIN:?Set APP_DOMAIN in .env}
+      SESSION_COOKIE_SECURE: "true"
+      GRAFANA_PUBLIC_URL: https://${APP_DOMAIN:?Set APP_DOMAIN in .env}/grafana/
+      SSE_INTERNAL_TOKEN: ${SSE_INTERNAL_TOKEN:?Set SSE_INTERNAL_TOKEN in .env}
+      RABBITMQ_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+
+  behavior-worker:
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+
+  frontend:
+    ports: !reset []
+    expose:
+      - "3000"
+
+  sse-gateway:
+    environment:
+      AUTH_MODE: oidc
+      SSE_INTERNAL_TOKEN: ${SSE_INTERNAL_TOKEN:?Set SSE_INTERNAL_TOKEN in .env}
+    ports: !reset []
+    expose:
+      - "8080"
+
+  grafana:
+    environment:
+      GF_SERVER_ROOT_URL: https://${APP_DOMAIN:?Set APP_DOMAIN in .env}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_COOKIE_SECURE: "true"
+    ports: !reset []
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      frontend:
+        condition: service_started
+      grafana:
+        condition: service_started
+
+volumes:
+  caddy-data:
+  caddy-config:

@@ -96,6 +96,36 @@ class RecommendationService:
             else auto_discovery
         )
 
+    def feed_legacy_snapshot(self) -> dict:
+        from dataclasses import fields
+        legacy = self.profile_reader._load_user_profile()
+        return {field.name: sorted(getattr(legacy, field.name)) for field in fields(legacy)}
+
+    def feed_snapshot(self, *, legacy_snapshot=None) -> MusicProfile:
+        """Committed profile only: feed pagination never invokes a chat model."""
+        legacy = UserProfile(**{key: set(value) for key, value in legacy_snapshot.items()}) if legacy_snapshot is not None else self.profile_reader._load_user_profile()
+        return self.profile_projector.project_committed(
+            user_id=self.user_id,scene="feed",
+            fallback_profile=self.profile_reader._fallback_music_profile(legacy)
+        ).profile
+
+    def decide_feed(self, *, profile: MusicProfile, request_spec: RequestSpec,
+                      limit: int, excluded: set[str], trace_id: str,
+                      legacy_snapshot=None, catalog=()):
+        """Serving decision without shown events, recommendation writes or LLM calls."""
+        legacy = UserProfile(**{key: set(value) for key, value in legacy_snapshot.items()}) if legacy_snapshot is not None else self.profile_reader._load_user_profile()
+        drafts = self._generate_candidates(legacy, request_spec)
+        for track, facets in catalog:
+            drafts.setdefault(track.track_id, CandidateDraft(track=track, sources={"feed_catalog"},
+                              tags=set(track.tags), facets=facets))
+        candidates = [self.recommendation_engine.score(draft, legacy, profile, trace_id,
+                       request_spec=request_spec) for draft in drafts.values()]
+        _ranked, selected, diagnostics = self.recommendation_engine.rank_and_select(
+            candidates, request=RecommendationRequest(scene="feed",limit=limit,
+            request_spec=request_spec,profile=profile,exclude_track_ids=excluded,recent_context={}),
+            legacy_profile=legacy)
+        return [item for item in selected if item.track["trackId"] not in excluded], diagnostics
+
     @music_operation("recommendation")
     def list_recommendations(
         self,
@@ -808,9 +838,9 @@ class RecommendationService:
             # but it is not user-preference evidence and must not enter AMEM.
             if item["event"] in MEMORY_EVIDENCE_EVENTS:
                 memory_evidence_count += 1
-                from rabbitmq_bus import rabbitmq_enabled
+                from job_transport import async_jobs_enabled
 
-                if not rabbitmq_enabled():
+                if not async_jobs_enabled():
                     record_music_behavior(
                         self.amem_bridge,
                         user_id=self.user_id,

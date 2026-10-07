@@ -1,0 +1,383 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector:0.147.0
+    restart: unless-stopped
+    user: "0:0"
+    command: ["--config=/etc/otel/collector.yaml"]
+    volumes:
+      - ./deploy/otel/collector.yaml:/etc/otel/collector.yaml:ro
+      - otel-traces:/var/lib/otel
+    mem_limit: 256m
+  rabbitmq:
+    image: rabbitmq:4.3.5-management-alpine
+    container_name: bilibili-radio-rabbitmq
+    hostname: rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:-radio}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD:-radio_dev_password}"
+      RABBITMQ_DEFAULT_VHOST: "${RABBITMQ_VHOST:-/}"
+      TZ: Asia/Shanghai
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    ports:
+      - "${RABBITMQ_BIND_ADDRESS:-127.0.0.1}:${RABBITMQ_AMQP_PORT:-5672}:5672"
+      - "${RABBITMQ_BIND_ADDRESS:-127.0.0.1}:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          rabbitmq-diagnostics -q ping &&
+          rabbitmq-diagnostics -q check_running &&
+          rabbitmq-diagnostics -q check_local_alarms
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  amem:
+    build:
+      context: ..
+      dockerfile: recommend-radio/backend/Dockerfile
+    container_name: bilibili-radio-amem
+    restart: unless-stopped
+    command: ["python", "amem_grpc_server.py"]
+    environment:
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-}
+      AMEM_ENABLED: "${AMEM_ENABLED:-true}"
+      AUTO_DREAM_ENABLED: "${AUTO_DREAM_ENABLED:-true}"
+      AUTO_DREAM_LLM_ENABLED: "${AUTO_DREAM_LLM_ENABLED:-true}"
+      AUTO_DREAM_TIMEZONE: "${AUTO_DREAM_TIMEZONE:-Asia/Shanghai}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}"
+      AMEM_GRPC_BIND: "0.0.0.0:9090"
+      AMEM_GRPC_WORKERS: "${AMEM_GRPC_WORKERS:-8}"
+      AMEM_DB_PATH: "/app/data/amem.sqlite3"
+      AMEM_RETRIEVAL_ROUTE_MUSIC_RECOMMENDATION: "${AMEM_RETRIEVAL_ROUTE_MUSIC_RECOMMENDATION:-lexical_first}"
+      AMEM_RETRIEVAL_ROUTE_CONVERSATION: "${AMEM_RETRIEVAL_ROUTE_CONVERSATION:-hybrid}"
+      AMEM_EMBEDDING_PROVIDER: "${AMEM_EMBEDDING_PROVIDER:-openai-compatible}"
+      AMEM_EMBEDDING_BASE_URL: "${AMEM_EMBEDDING_BASE_URL:-http://host.docker.internal:8001/v1}"
+      AMEM_EMBEDDING_API_KEY_ENV: "${AMEM_EMBEDDING_API_KEY_ENV:-BGE_M3_API_KEY}"
+      AMEM_EMBEDDING_MODEL: "${AMEM_EMBEDDING_MODEL:-bge-m3}"
+      AMEM_EMBEDDING_DIMENSIONS: "${AMEM_EMBEDDING_DIMENSIONS:-1024}"
+      AMEM_EMBEDDING_TIMEOUT_SECONDS: "${AMEM_EMBEDDING_TIMEOUT_SECONDS:-15}"
+      AMEM_EMBEDDING_NORMALIZED: "${AMEM_EMBEDDING_NORMALIZED:-true}"
+      AMEM_EMBEDDING_MIN_SIMILARITY: "${AMEM_EMBEDDING_MIN_SIMILARITY:-0.45}"
+      BGE_M3_API_KEY: "${BGE_M3_API_KEY:-local-embedding}"
+      RECOMMEND_LLM_ENABLED: "${RECOMMEND_LLM_ENABLED:-true}"
+      RECOMMEND_DIALOGUE_LLM_ENABLED: "${RECOMMEND_DIALOGUE_LLM_ENABLED:-true}"
+      RECOMMEND_DIALOGUE_ROUTER_LLM_ENABLED: "${RECOMMEND_DIALOGUE_ROUTER_LLM_ENABLED:-true}"
+      RECOMMEND_AUTO_DISCOVERY_ENABLED: "${RECOMMEND_AUTO_DISCOVERY_ENABLED:-true}"
+      RECOMMEND_LLM_PROVIDER: "${RECOMMEND_LLM_PROVIDER:-deepseek}"
+      RECOMMEND_LLM_BASE_URL: "${RECOMMEND_LLM_BASE_URL:-https://api.deepseek.com}"
+      RECOMMEND_LLM_API_KEY_ENV: "${RECOMMEND_LLM_API_KEY_ENV:-DEEPSEEK_API_KEY}"
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      RECOMMEND_LLM_MODEL: "${RECOMMEND_LLM_MODEL:-deepseek-chat}"
+      RECOMMEND_LLM_TIMEOUT_SECONDS: "${RECOMMEND_LLM_TIMEOUT_SECONDS:-12}"
+      RECOMMEND_LLM_TEMPERATURE: "${RECOMMEND_LLM_TEMPERATURE:-0.2}"
+      RECOMMEND_LLM_TOP_P: "${RECOMMEND_LLM_TOP_P:-0.95}"
+      RECOMMEND_LLM_MAX_TOKENS: "${RECOMMEND_LLM_MAX_TOKENS:-3000}"
+      RECOMMEND_LLM_EXTRA_BODY: "${RECOMMEND_LLM_EXTRA_BODY:-{\"chat_template_kwargs\":{\"thinking\":false}}}"
+      RECOMMEND_LLM_JSON_RESPONSE: "${RECOMMEND_LLM_JSON_RESPONSE:-true}"
+      RECOMMEND_LLM_ATTEMPTS: "${RECOMMEND_LLM_ATTEMPTS:-2}"
+      RECOMMEND_PROFILE_TTL_SECONDS: "${RECOMMEND_PROFILE_TTL_SECONDS:-600}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      TZ: Asia/Shanghai
+    volumes:
+      - ./server-data:/app/data
+    ports:
+      - "${AMEM_GRPC_BIND_ADDRESS:-127.0.0.1}:${AMEM_GRPC_PORT:-19090}:9090"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "python -c \"import sys, grpc; sys.path.insert(0, '/app/amem_gen'); from amem.v1 import amem_pb2, amem_pb2_grpc; channel=grpc.insecure_channel('127.0.0.1:9090'); response=amem_pb2_grpc.AmemServiceStub(channel).Health(amem_pb2.HealthRequest(), timeout=3); raise SystemExit(0 if response.status == 'serving' else 1)\""
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  backend: &backend-service
+    build:
+      context: ..
+      dockerfile: recommend-radio/backend/Dockerfile
+    container_name: bilibili-radio-backend
+    restart: unless-stopped
+    environment:
+      REQUIRE_DB_MIGRATION: "1"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}"
+      AUTH_MODE: ${AUTH_MODE:-disabled}
+      ALLOW_INSECURE_LOCAL_AUTH: ${ALLOW_INSECURE_LOCAL_AUTH:-1}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-}
+      APP_EXTERNAL_URL: ${APP_EXTERNAL_URL:-}
+      APP_SESSION_TTL_SECONDS: ${APP_SESSION_TTL_SECONDS:-604800}
+      APP_SESSION_IDLE_SECONDS: ${APP_SESSION_IDLE_SECONDS:-86400}
+      APP_ADMIN_SESSION_TTL_SECONDS: ${APP_ADMIN_SESSION_TTL_SECONDS:-28800}
+      APP_SESSION_MAX_ACTIVE: ${APP_SESSION_MAX_ACTIVE:-5}
+      APP_TRUSTED_HOSTS: ${APP_TRUSTED_HOSTS:-}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_SCOPES: ${OIDC_SCOPES:-openid profile email}
+      OIDC_ADMIN_GROUP: ${OIDC_ADMIN_GROUP:-}
+      OIDC_BOOTSTRAP_ADMIN_ISSUER: ${OIDC_BOOTSTRAP_ADMIN_ISSUER:-}
+      OIDC_BOOTSTRAP_ADMIN_SUBJECT: ${OIDC_BOOTSTRAP_ADMIN_SUBJECT:-}
+      OIDC_ALLOW_HTTP: ${OIDC_ALLOW_HTTP:-false}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
+      WEB_THREADS: ${WEB_THREADS:-16}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
+      GRAFANA_PUBLIC_URL: ${GRAFANA_PUBLIC_URL:-}
+      AMEM_ENABLED: "${AMEM_ENABLED:-true}"
+      AUTO_DREAM_ENABLED: "${AUTO_DREAM_ENABLED:-true}"
+      AUTO_DREAM_LLM_ENABLED: "${AUTO_DREAM_LLM_ENABLED:-true}"
+      AUTO_DREAM_TIMEZONE: "${AUTO_DREAM_TIMEZONE:-Asia/Shanghai}"
+      AMEM_TRANSPORT: "${AMEM_TRANSPORT:-grpc}"
+      AMEM_GRPC_ADDR: "${AMEM_GRPC_ADDR:-amem:9090}"
+      AMEM_GRPC_TIMEOUT_SECONDS: "${AMEM_GRPC_TIMEOUT_SECONDS:-10}"
+      AMEM_EMBEDDING_PROVIDER: "${AMEM_EMBEDDING_PROVIDER:-openai-compatible}"
+      AMEM_EMBEDDING_BASE_URL: "${AMEM_EMBEDDING_BASE_URL:-http://host.docker.internal:8001/v1}"
+      AMEM_EMBEDDING_API_KEY_ENV: "${AMEM_EMBEDDING_API_KEY_ENV:-BGE_M3_API_KEY}"
+      AMEM_EMBEDDING_MODEL: "${AMEM_EMBEDDING_MODEL:-bge-m3}"
+      AMEM_EMBEDDING_DIMENSIONS: "${AMEM_EMBEDDING_DIMENSIONS:-1024}"
+      AMEM_EMBEDDING_TIMEOUT_SECONDS: "${AMEM_EMBEDDING_TIMEOUT_SECONDS:-15}"
+      AMEM_EMBEDDING_NORMALIZED: "${AMEM_EMBEDDING_NORMALIZED:-true}"
+      AMEM_EMBEDDING_MIN_SIMILARITY: "${AMEM_EMBEDDING_MIN_SIMILARITY:-0.45}"
+      BGE_M3_API_KEY: "${BGE_M3_API_KEY:-local-embedding}"
+      RECOMMEND_LLM_ENABLED: "${RECOMMEND_LLM_ENABLED:-true}"
+      RECOMMEND_DIALOGUE_LLM_ENABLED: "${RECOMMEND_DIALOGUE_LLM_ENABLED:-true}"
+      RECOMMEND_DIALOGUE_ROUTER_LLM_ENABLED: "${RECOMMEND_DIALOGUE_ROUTER_LLM_ENABLED:-true}"
+      RECOMMEND_AUTO_DISCOVERY_ENABLED: "${RECOMMEND_AUTO_DISCOVERY_ENABLED:-true}"
+      RECOMMEND_LLM_PROVIDER: "${RECOMMEND_LLM_PROVIDER:-deepseek}"
+      RECOMMEND_LLM_BASE_URL: "${RECOMMEND_LLM_BASE_URL:-https://api.deepseek.com}"
+      RECOMMEND_LLM_API_KEY_ENV: "${RECOMMEND_LLM_API_KEY_ENV:-DEEPSEEK_API_KEY}"
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      RECOMMEND_LLM_MODEL: "${RECOMMEND_LLM_MODEL:-deepseek-chat}"
+      RECOMMEND_LLM_TIMEOUT_SECONDS: "${RECOMMEND_LLM_TIMEOUT_SECONDS:-12}"
+      RECOMMEND_LLM_TEMPERATURE: "${RECOMMEND_LLM_TEMPERATURE:-0.2}"
+      RECOMMEND_LLM_TOP_P: "${RECOMMEND_LLM_TOP_P:-0.95}"
+      RECOMMEND_LLM_MAX_TOKENS: "${RECOMMEND_LLM_MAX_TOKENS:-3000}"
+      RECOMMEND_LLM_EXTRA_BODY: "${RECOMMEND_LLM_EXTRA_BODY:-{\"chat_template_kwargs\":{\"thinking\":false}}}"
+      RECOMMEND_LLM_JSON_RESPONSE: "${RECOMMEND_LLM_JSON_RESPONSE:-true}"
+      RECOMMEND_LLM_ATTEMPTS: "${RECOMMEND_LLM_ATTEMPTS:-2}"
+      RECOMMEND_PROFILE_TTL_SECONDS: "${RECOMMEND_PROFILE_TTL_SECONDS:-600}"
+      SSE_GATEWAY_INTERNAL_URL: "http://sse-gateway:8080/internal/events"
+      SSE_INTERNAL_TOKEN: "${SSE_INTERNAL_TOKEN:-local-sse-token}"
+      RABBITMQ_ENABLED: "true"
+      RADIO_OUTBOX_EMBEDDED: "false"
+      RABBITMQ_HOST: "rabbitmq"
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: "${RABBITMQ_USER:-radio}"
+      RABBITMQ_PASSWORD: "${RABBITMQ_PASSWORD:-radio_dev_password}"
+      RABBITMQ_VHOST: "${RABBITMQ_VHOST:-/}"
+      RABBITMQ_EXCHANGE: "${RABBITMQ_EXCHANGE:-recommend-radio.events.v1}"
+      RABBITMQ_BEHAVIOR_ROUTING_KEY: "${RABBITMQ_BEHAVIOR_ROUTING_KEY:-behavior.music}"
+      RABBITMQ_BEHAVIOR_QUEUE: "${RABBITMQ_BEHAVIOR_QUEUE:-recommend-radio.amem.behavior.v1}"
+      RABBITMQ_DEAD_LETTER_EXCHANGE: "${RABBITMQ_DEAD_LETTER_EXCHANGE:-recommend-radio.dlx.v1}"
+      RABBITMQ_BEHAVIOR_DLQ: "${RABBITMQ_BEHAVIOR_DLQ:-recommend-radio.amem.behavior.dlq.v1}"
+      RABBITMQ_DELIVERY_LIMIT: "${RABBITMQ_DELIVERY_LIMIT:-8}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+    volumes:
+      - ./server-data:/app/data
+    ports:
+      - "${PY_BACKEND_BIND_ADDRESS:-127.0.0.1}:${PY_BACKEND_PORT:-5000}:5000"
+    expose:
+      - "5000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      amem:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health/ready', timeout=3).read()"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  migrate:
+    <<: *backend-service
+    container_name: bilibili-radio-migrate
+    restart: "no"
+    command: ["python", "migrate_db.py"]
+    depends_on: {}
+    ports: []
+    expose: []
+    healthcheck:
+      disable: true
+
+  task-worker:
+    <<: *backend-service
+    container_name: bilibili-radio-task-worker
+    command: ["python", "-m", "celery", "-A", "task_app", "worker", "--loglevel=INFO", "--concurrency=2", "--hostname=jobs@%h", "-Q", "radio.jobs.v2"]
+    ports: []
+    expose: []
+    stop_grace_period: 300s
+    healthcheck:
+      test: ["CMD-SHELL", "python -m celery -A task_app inspect ping -d jobs@$$HOSTNAME --timeout=3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  event-worker:
+    <<: *backend-service
+    container_name: bilibili-radio-event-worker
+    command: ["python", "-m", "celery", "-A", "task_app", "worker", "--loglevel=INFO", "--concurrency=2", "--hostname=events@%h", "-Q", "radio.events.v2"]
+    ports: []
+    expose: []
+    stop_grace_period: 300s
+    healthcheck:
+      test: ["CMD-SHELL", "python -m celery -A task_app inspect ping -d events@$$HOSTNAME --timeout=3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  outbox:
+    <<: *backend-service
+    container_name: bilibili-radio-outbox
+    command: ["python", "outbox_dispatcher.py"]
+    ports: []
+    expose: []
+    healthcheck:
+      test: ["CMD", "python", "-c", "import pathlib,time; assert time.time()-float(pathlib.Path('/tmp/radio-outbox-heartbeat').read_text()) < 60"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  behavior-worker:
+    profiles: ["legacy-drain"]
+    build:
+      context: ..
+      dockerfile: recommend-radio/backend/Dockerfile
+    container_name: bilibili-radio-behavior-worker
+    restart: unless-stopped
+    command: ["python", "behavior_worker.py"]
+    environment:
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-}
+      REQUIRE_DB_MIGRATION: "1"
+      AMEM_GRPC_ADDR: "${AMEM_GRPC_ADDR:-amem:9090}"
+      AMEM_GRPC_TIMEOUT_SECONDS: "${AMEM_GRPC_TIMEOUT_SECONDS:-10}"
+      RABBITMQ_HOST: "rabbitmq"
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: "${RABBITMQ_USER:-radio}"
+      RABBITMQ_PASSWORD: "${RABBITMQ_PASSWORD:-radio_dev_password}"
+      RABBITMQ_VHOST: "${RABBITMQ_VHOST:-/}"
+      RABBITMQ_EXCHANGE: "${RABBITMQ_EXCHANGE:-recommend-radio.events.v1}"
+      RABBITMQ_BEHAVIOR_ROUTING_KEY: "${RABBITMQ_BEHAVIOR_ROUTING_KEY:-behavior.music}"
+      RABBITMQ_BEHAVIOR_QUEUE: "${RABBITMQ_BEHAVIOR_QUEUE:-recommend-radio.amem.behavior.v1}"
+      RABBITMQ_DEAD_LETTER_EXCHANGE: "${RABBITMQ_DEAD_LETTER_EXCHANGE:-recommend-radio.dlx.v1}"
+      RABBITMQ_BEHAVIOR_DLQ: "${RABBITMQ_BEHAVIOR_DLQ:-recommend-radio.amem.behavior.dlq.v1}"
+      RABBITMQ_DELIVERY_LIMIT: "${RABBITMQ_DELIVERY_LIMIT:-8}"
+      RABBITMQ_PREFETCH_COUNT: "${RABBITMQ_PREFETCH_COUNT:-16}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      TZ: Asia/Shanghai
+    volumes:
+      - ./server-data:/app/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      amem:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import pathlib,time; assert time.time()-float(pathlib.Path('/tmp/radio-legacy-heartbeat').read_text()) < 60"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  sse-gateway:
+    build:
+      context: ./sse-gateway
+      dockerfile: Dockerfile
+    container_name: bilibili-radio-sse-gateway
+    restart: unless-stopped
+    environment:
+      SSE_BIND: "0.0.0.0:8080"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}"
+      SSE_DB_PATH: "/app/data/sse-events.sqlite3"
+      SSE_INTERNAL_TOKEN: "${SSE_INTERNAL_TOKEN:-local-sse-token}"
+      SSE_AUTH_VERIFY_URL: "http://backend:5000/api/session/me"
+      SSE_EVENT_RETENTION_DAYS: "${SSE_EVENT_RETENTION_DAYS:-7}"
+      AUTH_MODE: "${AUTH_MODE:-disabled}"
+      TZ: Asia/Shanghai
+    volumes:
+      - ./server-data:/app/data
+    ports:
+      - "${SSE_GATEWAY_BIND_ADDRESS:-127.0.0.1}:${SSE_GATEWAY_PORT:-18080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: bilibili-radio-frontend
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: "http://backend:5000"
+      SSE_GATEWAY_URL: "http://sse-gateway:8080"
+      STATIC_ROOT: "/app/dist"
+      PORT: "3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+      sse-gateway:
+        condition: service_healthy
+    ports:
+      - "${HTTP_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-3000}:3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  otel-traces:
+  rabbitmq-data:

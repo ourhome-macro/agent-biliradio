@@ -85,9 +85,9 @@ def enqueue_behavior(
     payload: dict | None = None,
     event_id: str | None = None,
 ) -> str | None:
-    from rabbitmq_bus import rabbitmq_enabled
+    from job_transport import async_jobs_enabled
 
-    if not rabbitmq_enabled():
+    if not async_jobs_enabled():
         return None
     values = dict(payload or {})
     values.update(userId=user_id, event=event, scene=scene)

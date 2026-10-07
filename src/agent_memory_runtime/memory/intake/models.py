@@ -87,6 +87,8 @@ class DreamJob:
     lease_expires_at: str | None = None
     error_type: str | None = None
     error_hash: str | None = None
+    mode: str = "deep"
+    rerun_requested: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -107,6 +109,8 @@ class DreamJob:
             "lease_expires_at": self.lease_expires_at,
             "error_type": self.error_type,
             "error_hash": self.error_hash,
+            "mode": self.mode,
+            "rerun_requested": self.rerun_requested,
         }
 
 
