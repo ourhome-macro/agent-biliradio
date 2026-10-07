@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
-from database import get_connection
+from database import begin_write, get_connection
 from error_code import APIError, ErrorCode
 from models import Track
 
@@ -43,7 +43,11 @@ class MediaService:
             ).fetchone()
         if previous:
             # Alias content can share an asset; verify against the link, not its first owner.
-            if not linked or previous["asset_id"] != linked["asset_id"]:
+            if (
+                not linked
+                or previous["asset_id"] != linked["asset_id"]
+                or previous["content_id"] != content_id
+            ):
                 raise APIError.conflict("Idempotency key is bound to another content")
             return self.descriptor(previous["playback_id"], user_id)
         metadata = json.loads(content["metadata_json"])
@@ -66,26 +70,41 @@ class MediaService:
             asset_id = identity("asset", metadata["bvid"], cid, content["scope"], POLICY)
         now, playback_id = time.time(), uuid4().hex
         with get_connection(self.repo.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="playback-command", key=encode([user_id, request_key]))
+            begin_write(conn, namespace="media-asset", key=asset_id)
+            begin_write(conn, namespace="content", key=content_id)
             # Recheck visibility under the writer lock before issuing a playback.
-            self.repo.authorize(
+            current_content = self.repo.authorize(
                 conn.execute(
                     "SELECT * FROM feed_content WHERE content_id=?", (content_id,)
                 ).fetchone(),
                 user_id,
             )
+            current_metadata = json.loads(current_content["metadata_json"])
+            if (current_metadata.get("source"), current_metadata.get("bvid")) != (
+                metadata.get("source"),
+                metadata.get("bvid"),
+            ) or (
+                current_metadata.get("cid") and current_metadata.get("cid") != metadata.get("cid")
+            ):
+                raise APIError.conflict(
+                    "Media identity changed while resolving source; retry playback"
+                )
+            current_metadata["cid"] = metadata.get("cid")
+            metadata = current_metadata
             previous = conn.execute(
                 "SELECT * FROM media_playbacks WHERE user_id=? AND request_key=?",
                 (user_id, request_key),
             ).fetchone()
             if previous:
-                if previous["asset_id"] != asset_id:
+                if previous["asset_id"] != asset_id or previous["content_id"] != content_id:
                     raise APIError.conflict("Idempotency key is bound to another content")
                 playback_id = previous["playback_id"]
             else:
                 conn.execute(
-                    "UPDATE feed_content SET metadata_json=? WHERE content_id=?",
-                    (encode(metadata), content_id),
+                    "UPDATE feed_content SET metadata_json=?,version=version+1 "
+                    "WHERE content_id=? AND metadata_json<>?",
+                    (encode(metadata), content_id, encode(metadata)),
                 )
                 conn.execute(
                     """INSERT OR IGNORE INTO media_assets(asset_id,content_id,policy,updated_at)
@@ -167,8 +186,8 @@ class MediaService:
                         )
                 conn.execute(
                     """INSERT INTO media_playbacks
-                    (playback_id,user_id,asset_id,import_id,request_key,expires_at,created_at)
-                    VALUES (?,?,?,?,?,?,?)""",
+                    (playback_id,user_id,asset_id,import_id,request_key,expires_at,created_at,content_id)
+                    VALUES (?,?,?,?,?,?,?,?)""",
                     (
                         playback_id,
                         user_id,
@@ -177,6 +196,7 @@ class MediaService:
                         request_key,
                         now + self.config.playback_seconds,
                         now,
+                        content_id,
                     ),
                 )
         return self.descriptor(playback_id, user_id)
@@ -187,7 +207,7 @@ class MediaService:
                 """SELECT p.*,a.status AS asset_status,a.version AS asset_version,
                 a.manifest_json,a.content_id,c.scope,c.owner_id,c.status AS content_status
                 FROM media_playbacks p JOIN media_assets a ON a.asset_id=p.asset_id
-                JOIN feed_content c ON c.content_id=a.content_id
+                JOIN feed_content c ON c.content_id=COALESCE(p.content_id,a.content_id)
                 WHERE p.playback_id=? AND p.user_id=?""",
                 (playback_id, user_id),
             ).fetchone()
@@ -219,15 +239,45 @@ class MediaService:
                     ):
                         status = "streaming"
                 complete = bool(job["complete_source"])
+        now = time.time()
+        if status in {"streaming", "ready"} and row["playable_at"] is None:
+            with get_connection(self.repo.db_path) as conn:
+                conn.execute(
+                    "UPDATE media_playbacks SET playable_at=? "
+                    "WHERE playback_id=? AND playable_at IS NULL",
+                    (now, playback_id),
+                )
+        generation_key = (
+            f"stored:{row['asset_version']}"
+            if mode == "stored"
+            else f"{job['import_id']}:{job['fetch_attempts']}"
+        )
+        with get_connection(self.repo.db_path) as conn:
+            metadata = conn.execute(
+                "SELECT metadata_json FROM feed_content WHERE content_id=?", (row["content_id"],)
+            ).fetchone()
+        duration = float(
+            json.loads(row["manifest_json"]).get("duration")
+            or json.loads(metadata[0]).get("duration")
+            or 0
+        )
         return {
             "playbackId": playback_id,
             "assetId": row["asset_id"],
             "mode": mode,
             "status": status,
-            "manifestUrl": f"/api/media/streams/{playback_id}/index.m3u8"
+            "manifestUrl": f"/api/media/streams/{playback_id}/index.m3u8?v={generation_key}"
             if status in {"streaming", "ready"}
             else None,
             "expiresAt": row["expires_at"],
+            "leaseExpiresAt": row["expires_at"],
+            "manifestExpiresAt": now + self.config.signed_seconds if mode == "stored" else None,
+            "refreshAfterSeconds": max(
+                1, self.config.signed_seconds - min(60, self.config.signed_seconds / 3)
+            ),
+            "generationKey": generation_key,
+            "durationSeconds": duration,
+            "seekable": mode == "stored" or complete,
             "sourceComplete": complete,
             "generation": self.repo.import_job(row["import_id"])["fetch_attempts"]
             if mode == "cold"
@@ -238,8 +288,25 @@ class MediaService:
         }
 
     def heartbeat(self, playback_id, user_id):
-        self._playback(playback_id, user_id, require_active=False)
+        playback = self._playback(playback_id, user_id, require_active=False)
         with get_connection(self.repo.db_path) as conn:
+            begin_write(conn, namespace="media-asset", key=playback["asset_id"])
+            state = conn.execute(
+                "SELECT a.status AS asset_status,j.status AS import_status FROM media_playbacks p "
+                "JOIN media_assets a ON a.asset_id=p.asset_id "
+                "LEFT JOIN media_import_jobs j ON j.import_id=p.import_id "
+                "WHERE p.playback_id=?",
+                (playback_id,),
+            ).fetchone()
+            if (
+                not state
+                or state["asset_status"] == "retired"
+                or (
+                    state["asset_status"] != "ready"
+                    and state["import_status"] in {"cancelled", "failed"}
+                )
+            ):
+                raise APIError(ErrorCode.CONFLICT, "Playback import is no longer active", 410)
             updated = conn.execute(
                 """UPDATE media_playbacks SET expires_at=?
                 WHERE playback_id=? AND user_id=? AND active=1""",
@@ -250,8 +317,9 @@ class MediaService:
         return self.descriptor(playback_id, user_id)
 
     def release(self, playback_id, user_id):
-        self._playback(playback_id, user_id, require_active=False)
+        playback = self._playback(playback_id, user_id, require_active=False)
         with get_connection(self.repo.db_path) as conn:
+            begin_write(conn, namespace="media-asset", key=playback["asset_id"])
             conn.execute(
                 "UPDATE media_playbacks SET active=0,expires_at=? "
                 "WHERE playback_id=? AND user_id=?",

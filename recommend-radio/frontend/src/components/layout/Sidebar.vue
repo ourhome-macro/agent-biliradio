@@ -96,11 +96,13 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useLibraryStore } from '@/stores/libraryStore'
+import { useAuthStore } from '@/stores/authStore'
 import AppIcon from '@/components/base/AppIcon.vue'
 import iconUrl from '@/assets/icon.png'
 
 const route = useRoute()
 const library = useLibraryStore()
+const auth = useAuthStore()
 const emit = defineEmits<{ navigate: [] }>()
 
 const playlistDialogOpen = ref(false)
@@ -114,6 +116,7 @@ onMounted(() => { void fetchSettings().then(value => { feedEnabled.value = !!val
 const navItems = computed(() => [
   { to: '/', label: '发现', icon: 'home' },
   ...(feedEnabled.value ? [{ to: '/feed', label: '音乐视频', icon: 'play' }] : []),
+  ...(feedEnabled.value && auth.isAdmin ? [{ to: '/admin/feed', label: '视频运营', icon: 'list' }] : []),
   { to: '/search', label: '搜索', icon: 'search' },
   { to: '/favorites', label: 'B 站收藏夹', icon: 'star' },
   { to: '/agent', label: '音乐助手', icon: 'message' },

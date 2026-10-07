@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import hashlib
 from functools import lru_cache
 from pathlib import Path
 
-from database import DEFAULT_DB_PATH
+from database import DATA_DIR, DEFAULT_DB_PATH, database_identity, mysql_target
 
 from .cache import FeedCache
 from .config import FeedConfig
@@ -15,9 +14,12 @@ from .repository import FeedRepository
 from .storage import MinIOStorage
 
 
-@lru_cache(maxsize=8)
 def resources(config: FeedConfig, db_path: str):
-    namespace = hashlib.sha256(str(Path(db_path).resolve()).encode()).hexdigest()[:12]
+    return _resources(config, database_identity(db_path)[:12])
+
+
+@lru_cache(maxsize=8)
+def _resources(config: FeedConfig, namespace: str):
     return FeedCache(config.redis_url, prefix=f"radio:feed:{namespace}"), MinIOStorage(config)
 
 
@@ -27,7 +29,8 @@ class FeedServices:
     ):
         self.user_id = user_id
         self.repo = FeedRepository(db_path or DEFAULT_DB_PATH)
-        self.config = config or FeedConfig.from_env(data_dir=Path(self.repo.db_path).parent)
+        data_dir = DATA_DIR if mysql_target(self.repo.db_path) else Path(self.repo.db_path).parent
+        self.config = config or FeedConfig.from_env(data_dir=data_dir)
         if cache is None or storage is None:
             shared_cache, shared_storage = resources(self.config, self.repo.db_path)
             cache = cache or shared_cache

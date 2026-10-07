@@ -6,7 +6,7 @@ import math
 import time
 from uuid import uuid4
 
-from database import get_connection
+from database import begin_write, get_connection
 from error_code import APIError, ErrorCode
 from models import Track
 from music_profile import MusicProfile
@@ -47,7 +47,7 @@ class FeedService:
     def create(self, user_id, *, mode="personal", request_text="", request_key):
         if (
             not isinstance(mode, str)
-            or mode not in {"personal", "new"}
+            or mode not in {"personal", "new", "following"}
             or not isinstance(request_text, str)
             or len(request_text) > 2000
             or not request_key
@@ -65,7 +65,7 @@ class FeedService:
         )
         now = time.time()
         with get_connection(self.repo.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="feed-command", key=encode([user_id, request_key]))
             old = conn.execute(
                 "SELECT * FROM feed_sessions WHERE user_id=? AND request_key=?",
                 (user_id, request_key),
@@ -78,6 +78,9 @@ class FeedService:
                 session_id, revision = uuid4().hex, uuid4().hex
                 snapshot = profile.to_dict()
                 snapshot["legacy_snapshot"] = legacy_snapshot
+                if mode == "following":
+                    from .following_feed import following_snapshot
+                    snapshot["following"] = following_snapshot(self.repo.db_path, user_id)
                 version = hashlib.sha256(encode(snapshot).encode()).hexdigest()
                 conn.execute(
                     "INSERT INTO feed_sessions VALUES (?,?,?,?,?,?,?,?,?,?,?)",
@@ -131,33 +134,65 @@ class FeedService:
             seen = {
                 row[0]
                 for row in conn.execute(
-                    "SELECT content_id FROM feed_items WHERE session_id=?", (session_id,)
+                    "SELECT c.track_id FROM feed_items i JOIN feed_content c "
+                    "ON c.content_id=i.content_id WHERE i.session_id=?", (session_id,)
                 )
             }
         spec = RequestSpec.from_dict(json.loads(session["spec_json"]))
+        if session["mode"] == "following":
+            from .following_feed import following_page
+            return following_page(self, user_id, session, number, cursor, spec)
         self._sync(user_id, spec)
-        rows = [
-            row
-            for row in self.repo.list_content(user_id)
-            if row["content_id"] not in seen
-            and spec.matches_candidate(
-                json.loads(row["metadata_json"]), json.loads(row["facets_json"])
+        from .recommendation import catalog_exclusions, deduplicate_catalog, distinct_catalog_count
+
+        rows = []
+        seen_since = time.time() - self.config.seen_cooldown_seconds
+        identity_exclusions = catalog_exclusions(
+            user_id=user_id, session_id=session_id, db_path=self.repo.db_path,
+            seen_since=seen_since,
+        )
+        profile_snapshot = json.loads(session["profile_json"])
+        frozen_profile = MusicProfile.from_dict(profile_snapshot, source="feed_snapshot")
+        # Exclude issued/seen records in SQL before applying a candidate window.
+        # Scan bounded windows for strict conditions, rather than starving behind 500 old rows.
+        for offset in range(0, 5000, 500):
+            batch = self.repo.list_content(
+                user_id, session_id=session_id, seen_since=seen_since, offset=offset
             )
-        ]
+            matching = [
+                row
+                for row in batch
+                if spec.matches_candidate(
+                    json.loads(row["metadata_json"]), json.loads(row["facets_json"])
+                )
+            ]
+            if session["mode"] == "personal" and self.recommendations:
+                allowed = self.recommendations.eligible_feed_catalog(
+                    profile=frozen_profile, request_spec=spec,
+                    legacy_snapshot=profile_snapshot.get("legacy_snapshot", {}),
+                    catalog=[(Track.from_dict(json.loads(row["metadata_json"])),
+                              json.loads(row["facets_json"])) for row in matching],
+                )
+                matching = [
+                    row for row, accepted in zip(matching, allowed, strict=True) if accepted
+                ]
+            rows.extend(matching)
+            if (
+                distinct_catalog_count(rows, excluded=identity_exclusions) >= 100
+                or len(batch) < 500
+            ):
+                break
+        rows = deduplicate_catalog(
+            sorted(rows, key=lambda row: row["asset_status"] == "ready", reverse=True),
+            excluded=identity_exclusions,
+        )
         decisions = {}
         if session["mode"] == "personal" and self.recommendations:
-            profile_snapshot = json.loads(session["profile_json"])
             candidates, _diagnostics = self.recommendations.decide_feed(
-                profile=MusicProfile.from_dict(
-                    json.loads(session["profile_json"]), source="feed_snapshot"
-                ),
+                profile=frozen_profile,
                 request_spec=spec,
-                limit=40,
-                excluded={
-                    row["track_id"]
-                    for row in self.repo.list_content(user_id)
-                    if row["content_id"] in seen
-                },
+                limit=min(200, max(40, len(rows))),
+                excluded=seen,
                 trace_id=f"feed:{session_id}:{number}",
                 legacy_snapshot=profile_snapshot.get("legacy_snapshot"),
                 catalog=[
@@ -185,15 +220,27 @@ class FeedService:
                 key=lambda r: (r["asset_status"] == "ready", r["admitted_at"], r["content_id"]),
                 reverse=True,
             )
+        from .recommendation import rank_catalog
+
+        rows = rank_catalog(
+            rows,
+            user_id=user_id,
+            session_id=session_id,
+            db_path=self.repo.db_path,
+            mode=session["mode"],
+            page_number=number,
+            exploration_ratio=self.config.exploration_ratio,
+            seen_since=seen_since,
+        )
         selected = rows[:10]
         supply = "available" if len(rows) > 10 else "exhausted"
-        if len(rows) < 10 and self.recommendations and self.recommendations.auto_discovery:
+        if len(rows) <= 10 and self.recommendations and self.recommendations.auto_discovery:
             self.recommendations.enqueue_discovery(scene="feed", limit=10, request_spec=spec)
             supply = "replenishing"
         now, page_id = time.time(), uuid4().hex
         with span("feed.page", attributes={"feed.mode": session["mode"]}):
             with get_connection(self.repo.db_path) as conn:
-                conn.execute("BEGIN IMMEDIATE")
+                begin_write(conn, namespace="feed-page", key=session_id)
                 existing = conn.execute(
                     "SELECT * FROM feed_pages WHERE session_id=? AND page_number=?",
                     (session_id, number),
@@ -226,6 +273,7 @@ class FeedService:
                             "policyVersion": session["policy_version"],
                             "decision": decisions.get(row["track_id"], {}),
                             "source": "bili",
+                            "feedPolicy": row.get("_feed_policy", {}),
                         }
                         conn.execute(
                             "INSERT OR IGNORE INTO feed_items VALUES (?,?,?,?,?,?,?)",
@@ -265,6 +313,10 @@ class FeedService:
 
         issued = self.cache.get(key, load, hard=remaining, soft=remaining)["items"]
         items = []
+        following = None
+        if session["mode"] == "following":
+            from .following_feed import render_state
+            following = render_state(self.repo.db_path, user_id, session)
         with get_connection(self.repo.db_path) as conn:
             for item in issued:
                 # Cache never authorizes visibility or reproduces a user's current dislike.
@@ -286,6 +338,12 @@ class FeedService:
                     or row["reaction"] == "dislike"
                     or row["asset_status"] in {"unsupported", "retired"}
                 )
+                if following is not None and row:
+                    creator = conn.execute(
+                        "SELECT creator_id FROM creator_content WHERE content_id=?",
+                        (item["content_id"],),
+                    ).fetchone()
+                    suppressed = suppressed or not creator or creator[0] not in following["allowed"]
                 output = {
                     "itemId": item["item_id"],
                     "contentId": item["content_id"],
@@ -328,7 +386,7 @@ class FeedService:
                         key: counters.get(key, 0) for key in ("likes", "dislikes", "version")
                     }
                 items.append(output)
-        return {
+        result = {
             "sessionId": session["session_id"],
             "revision": session["revision"],
             "mode": session["mode"],
@@ -338,6 +396,9 @@ class FeedService:
             "supplyState": page["supply_state"],
             "expiresAt": session["expires_at"],
         }
+        if following is not None:
+            result["followingState"] = following["state"]
+        return result
 
     def events(self, user_id, events):
         if not isinstance(events, list) or len(events) > 50:
@@ -354,7 +415,7 @@ class FeedService:
             "autoplay_blocked",
         }
         with get_connection(self.repo.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="feed-events", key=user_id)
             for payload in events:
                 if (
                     not isinstance(payload, dict)
@@ -411,20 +472,24 @@ class FeedService:
                         JOIN content_media_links l ON l.asset_id=p.asset_id
                         JOIN media_assets a ON a.asset_id=p.asset_id
                         LEFT JOIN media_import_jobs j ON j.import_id=p.import_id
-                        WHERE p.playback_id=? AND p.user_id=? AND l.content_id=?""",
-                        (payload.get("playbackId"), user_id, item["content_id"]),
+                        WHERE p.playback_id=? AND p.user_id=? AND l.content_id=?
+                        AND COALESCE(p.content_id,a.content_id)=?""",
+                        (
+                            payload.get("playbackId"),
+                            user_id,
+                            item["content_id"],
+                            item["content_id"],
+                        ),
                     ).fetchone()
                     if not playback:
                         raise APIError.validation_error("Event does not belong to this playback")
                     if event_type == "play_started":
-                        from .media import MediaService
-
-                        state = MediaService(self.repo, self.config, None).descriptor(
-                            playback["playback_id"], user_id
-                        )["status"]
-                        if state not in {"streaming", "ready"}:
+                        if playback["playable_at"] is None:
                             raise APIError.validation_error("Playback is not ready")
                     watched = event_number(payload, "watchMs")
+                    for field in ("bufferingMs", "startupMs", "positionMs"):
+                        if field in payload and not 0 <= event_number(payload, field) <= 86400000:
+                            raise APIError.validation_error(f"Invalid {field}")
                     if (
                         not math.isfinite(watched)
                         or watched < 0
@@ -463,6 +528,9 @@ class FeedService:
                     (event_id, user_id, item["item_id"], event_type, digest, raw, now, now),
                 )
                 accepted.append(event_id)
+                from .engagement import project_event
+
+                project_event(conn, user_id=user_id, item=dict(item), payload=payload, now=now)
                 # Only grounded positive evidence enters the existing memory outbox.
                 if event_type in {"play_started", "complete"}:
                     from durable_jobs import enqueue_behavior

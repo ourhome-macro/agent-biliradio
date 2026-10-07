@@ -37,13 +37,13 @@ def evaluate(repo):
             COALESCE(SUM(r.state='like'),0) AS actual_likes,
             COALESCE(SUM(r.state='dislike'),0) AS actual_dislikes
             FROM content_counters c LEFT JOIN content_reactions r ON r.content_id=c.content_id
-            GROUP BY c.content_id""").fetchall()
+            GROUP BY c.content_id,c.likes,c.dislikes""").fetchall()
         pending = conn.execute("""SELECT COUNT(*) AS count,MIN(created_at) AS oldest
             FROM durable_jobs WHERE kind='feed_projection'
             AND status IN ('queued','running')""").fetchone()
         duplicate_ready = conn.execute("""SELECT COUNT(*) FROM (
             SELECT asset_id FROM media_import_jobs WHERE status='completed'
-            GROUP BY asset_id HAVING COUNT(*)>1)""").fetchone()[0]
+            GROUP BY asset_id HAVING COUNT(*)>1) AS duplicate_assets""").fetchone()[0]
     constraints = [
         RequestSpec.from_dict(json.loads(row["spec_json"])).matches_candidate(
             json.loads(row["metadata_json"]), json.loads(row["facets_json"])

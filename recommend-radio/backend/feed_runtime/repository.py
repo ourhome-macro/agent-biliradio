@@ -4,7 +4,7 @@ import json
 import time
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
-from database import get_connection, init_db
+from database import begin_write, get_connection, init_db
 from error_code import APIError
 from library_service import LibraryService
 
@@ -15,6 +15,25 @@ def encode(value) -> str:
 
 def identity(kind: str, *parts) -> str:
     return str(uuid5(NAMESPACE_URL, encode(["radio-feed", kind, *parts])))
+
+
+class ContentLinkChanged(RuntimeError):
+    pass
+
+
+def lock_content_asset(conn, content_id):
+    first = conn.execute(
+        "SELECT asset_id FROM content_media_links WHERE content_id=?", (content_id,)
+    ).fetchone()
+    if first:
+        begin_write(conn, namespace="media-asset", key=first[0])
+    begin_write(conn, namespace="content", key=content_id)
+    current = conn.execute(
+        "SELECT asset_id FROM content_media_links WHERE content_id=?", (content_id,)
+    ).fetchone()
+    if (current[0] if current else None) != (first[0] if first else None):
+        raise ContentLinkChanged("Retry lifecycle command after concurrent asset creation")
+    return current[0] if current else None
 
 
 class FeedRepository:
@@ -57,7 +76,8 @@ class FeedRepository:
         metadata, facets_value = encode(track.to_dict()), encode(facets or {})
         now = time.time()
         with get_connection(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="content", key=content_id)
+            begin_write(conn, namespace="reaction-track", key=track.track_id)
             old = conn.execute(
                 "SELECT * FROM feed_content WHERE content_id=?", (content_id,)
             ).fetchone()
@@ -80,9 +100,10 @@ class FeedRepository:
                 )
                 conn.execute(
                     """INSERT INTO content_reactions(user_id,content_id,state,version,updated_at)
-                    SELECT user_id,?,'like',1,? FROM likes
+                    SELECT user_id,?,'like',1,COALESCE(CAST(strftime('%s',created_at) AS REAL),0)
+                    FROM likes
                     WHERE track_id=? AND (?='public' OR user_id=?)""",
-                    (content_id, now, track.track_id, scope, user_id),
+                    (content_id, track.track_id, scope, user_id),
                 )
                 conn.execute(
                     """INSERT INTO reaction_projection SELECT user_id,content_id,state,version
@@ -131,7 +152,7 @@ class FeedRepository:
                 user_id,
             )
 
-    def list_content(self, user_id: str):
+    def list_content(self, user_id: str, *, session_id=None, seen_since=None, offset=0, limit=500):
         with get_connection(self.db_path) as conn:
             rows = conn.execute(
                 """SELECT c.*,a.status AS asset_status,a.asset_id
@@ -141,8 +162,24 @@ class FeedRepository:
                 WHERE c.status='admitted' AND (c.scope='public' OR c.owner_id=?)
                   AND COALESCE(a.status,'empty') NOT IN ('unsupported','retired')
                   AND COALESCE(r.state,'neutral')<>'dislike'
-                ORDER BY c.admitted_at DESC,c.content_id DESC LIMIT 500""",
-                (user_id, user_id),
+                  AND (? IS NULL OR NOT EXISTS (
+                    SELECT 1 FROM feed_items i WHERE i.session_id=? AND i.content_id=c.content_id))
+                  AND (? IS NULL OR NOT EXISTS (
+                    SELECT 1 FROM feed_user_content h
+                    WHERE h.user_id=? AND h.content_id=c.content_id
+                    AND MAX(h.last_exposed_at,h.last_watched_at)>?))
+                ORDER BY c.admitted_at DESC,c.content_id DESC LIMIT ? OFFSET ?""",
+                (
+                    user_id,
+                    user_id,
+                    session_id,
+                    session_id,
+                    seen_since,
+                    user_id,
+                    seen_since,
+                    min(max(int(limit), 1), 500),
+                    max(0, int(offset)),
+                ),
             ).fetchall()
         return [dict(row) for row in rows]
 
@@ -160,8 +197,11 @@ class FeedRepository:
 
     def claim_import(self, import_id, config):
         now, token = time.time(), uuid4().hex
+        existing = self.import_job(import_id)
+        if not existing:
+            return None
         with get_connection(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="media-asset", key=existing["asset_id"])
             updated = conn.execute(
                 """UPDATE media_import_jobs SET status='running',lease_token=?,
                 lease_until=?,updated_at=? WHERE import_id=? AND
@@ -190,7 +230,7 @@ class FeedRepository:
             raise TimeoutError("MediaExecutionBudgetExceeded")
         now = time.time()
         with get_connection(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="media-asset", key=job["asset_id"])
             current = self.owned(conn, job)
             conn.execute(
                 """UPDATE media_import_jobs SET stage=?,complete_source=?,bytes=?,
@@ -211,8 +251,8 @@ class FeedRepository:
             if job.get("transport_token"):
                 renewed = conn.execute(
                     """UPDATE durable_jobs SET lease_until=?,updated_at=?
-                    WHERE job_id=? AND status='running' AND lease_token=?""",
-                    (now + config.lease_seconds, now, job["job_id"], job["transport_token"]),
+                    WHERE job_id=? AND status='running' AND lease_token=? AND lease_until>?""",
+                    (now + config.lease_seconds, now, job["job_id"], job["transport_token"], now),
                 )
                 if not renewed.rowcount:
                     raise RuntimeError("TransportLeaseLost")
@@ -220,7 +260,7 @@ class FeedRepository:
     def demand(self, job, config) -> bool:
         now = time.time()
         with get_connection(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="media-asset", key=job["asset_id"])
             row = self.owned(conn, job)
             if row["complete_source"]:
                 return True
@@ -247,7 +287,7 @@ class FeedRepository:
     def cancel_if_idle(self, job, config) -> bool:
         now = time.time()
         with get_connection(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="media-asset", key=job["asset_id"])
             row = self.owned(conn, job)
             viewers = conn.execute(
                 """SELECT COUNT(*) FROM media_playbacks
@@ -268,9 +308,9 @@ class FeedRepository:
             )
             return True
 
-    def stop_import(self, job, *, status, error_type=None):
+    def stop_import(self, job, *, status, error_type=None, asset_status=None):
         with get_connection(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="media-asset", key=job["asset_id"])
             self.owned(conn, job)
             conn.execute(
                 """UPDATE media_import_jobs SET status=?,error_type=?,lease_until=0,
@@ -281,14 +321,16 @@ class FeedRepository:
                 "DELETE FROM media_storage_reservations WHERE import_id=?", (job["import_id"],)
             )
             conn.execute(
-                "UPDATE media_assets SET error_type=?,updated_at=? "
+                "UPDATE media_assets SET error_type=?,updated_at=?,"
+                "status=CASE WHEN ? IS NULL THEN status ELSE ? END "
                 "WHERE asset_id=? AND status<>'ready'",
-                (error_type, time.time(), job["asset_id"]),
+                (error_type, time.time(), asset_status, asset_status, job["asset_id"]),
             )
 
     def reserve_storage(self, job, size, config):
         with get_connection(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="media-asset", key=job["asset_id"])
+            begin_write(conn, namespace="media-quota", key="storage")
             self.owned(conn, job)
             used = conn.execute(
                 "SELECT COALESCE(SUM(bytes),0) FROM media_assets WHERE bytes>0"
@@ -300,14 +342,17 @@ class FeedRepository:
             if size > config.max_bytes or used + reserved + size > config.storage_bytes:
                 raise RuntimeError("MediaStorageQuotaExceeded")
             conn.execute(
-                "INSERT OR REPLACE INTO media_storage_reservations VALUES (?,?,?)",
+                "INSERT INTO media_storage_reservations VALUES (?,?,?) "
+                "ON CONFLICT(import_id) DO UPDATE SET "
+                "bytes=excluded.bytes,updated_at=excluded.updated_at",
                 (job["import_id"], size, time.time()),
             )
 
     def complete_import(self, job, manifest):
         now = time.time()
         with get_connection(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn, namespace="media-asset", key=job["asset_id"])
+            begin_write(conn, namespace="media-quota", key="storage")
             row = self.owned(conn, job)
             if not row["complete_source"]:
                 raise RuntimeError("IncompleteMediaCannotBePublished")
@@ -345,12 +390,26 @@ class FeedRepository:
             )
 
     def retire(self, content_id, user_id):
-        self.content(content_id, user_id)
-        with get_connection(self.db_path) as conn:
-            conn.execute(
-                "UPDATE feed_content SET status='retired',version=version+1 WHERE content_id=?",
-                (content_id,),
-            )
-            conn.execute(
-                "UPDATE media_assets SET status='retired' WHERE content_id=?", (content_id,)
-            )
+        for attempt in range(3):
+            try:
+                with get_connection(self.db_path) as conn:
+                    asset_id = lock_content_asset(conn, content_id)
+                    self.authorize(
+                        conn.execute(
+                            "SELECT * FROM feed_content WHERE content_id=?", (content_id,)
+                        ).fetchone(),
+                        user_id,
+                    )
+                    conn.execute(
+                        "UPDATE feed_content SET status='retired',version=version+1 "
+                        "WHERE content_id=?",
+                        (content_id,),
+                    )
+                    if asset_id:
+                        conn.execute(
+                            "UPDATE media_assets SET status='retired' WHERE asset_id=?", (asset_id,)
+                        )
+                return
+            except ContentLinkChanged:
+                if attempt == 2:
+                    raise APIError.conflict("Media link changed; retry lifecycle command") from None

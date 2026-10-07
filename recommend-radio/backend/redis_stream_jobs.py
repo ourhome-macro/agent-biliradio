@@ -11,10 +11,9 @@ import socket
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from uuid import uuid4
 
-from database import DEFAULT_DB_PATH, get_connection, init_db
+from database import DEFAULT_DB_PATH, database_identity, get_connection, init_db
 from durable_jobs import claim, finish, publish_pending
 from redis import Redis
 from redis.exceptions import ResponseError
@@ -57,7 +56,7 @@ class RedisJobBus:
 
     def __init__(self, db_path, url=None, *, client=None):
         self.db_path = str(db_path)
-        identity = hashlib.sha256(str(Path(db_path).resolve()).encode()).hexdigest()[:12]
+        identity = database_identity(db_path)[:12]
         self.prefix = f"radio:queue:{identity}"
         self.redis = client or Redis.from_url(
             url,
@@ -292,6 +291,8 @@ def main():
     def publish():
         while not stop.is_set():
             try:
+                from following.scheduler import periodic_tick
+                periodic_tick(bus.db_path)
                 publish_pending(bus.db_path, bus.publish)
             except Exception as error:
                 LOGGER.warning("Outbox retry: %s", type(error).__name__)

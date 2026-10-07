@@ -6,7 +6,7 @@ import shutil
 import time
 from datetime import UTC, datetime
 
-from database import get_connection
+from database import begin_write, get_connection
 
 from .media import MediaService
 
@@ -40,7 +40,7 @@ def cleanup(repo, config, storage, *, apply=False, minimum_age=86400):
             if apply:
                 # workdir() resolves and checks the exact absolute deletion target.
                 with get_connection(repo.db_path) as conn:
-                    conn.execute("BEGIN IMMEDIATE")
+                    begin_write(conn, namespace="media-asset", key=job["asset_id"])
                     live = conn.execute(
                         """SELECT 1 FROM media_import_jobs WHERE work_key=?
                         AND status IN ('queued','running')""",
@@ -71,7 +71,7 @@ def cleanup(repo, config, storage, *, apply=False, minimum_age=86400):
             objects.append(item.object_name)
             if apply:
                 with get_connection(repo.db_path) as conn:
-                    conn.execute("BEGIN IMMEDIATE")
+                    begin_write(conn, namespace="media-asset", key=parts[1])
                     live = conn.execute(
                         """SELECT 1 FROM media_import_jobs WHERE asset_id=?
                         AND status IN ('queued','running')""",

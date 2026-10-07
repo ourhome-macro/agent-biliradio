@@ -7,8 +7,9 @@ import time
 from typing import Any
 from uuid import uuid4
 
-from database import get_connection
+from database import begin_write, get_connection
 from durable_jobs import enqueue
+from error_code import APIError
 from sse_event_client import SSEEventPublisher
 
 LOGGER = logging.getLogger("recommend-radio.dialogue-tasks")
@@ -59,6 +60,24 @@ class DialogueTaskService:
                 }
         resolved_session_id = service.resolve_session_id(session_id=session_id)
         with get_connection(service.db_path) as conn:
+            begin_write(conn, namespace="dialogue-submit", key=json.dumps([user_id, task_id]))
+            # The preflight read can race another identical submit. Serialize the
+            # command and reuse its committed session instead of binding it twice.
+            old = conn.execute(
+                "SELECT * FROM durable_jobs WHERE job_id=? AND user_id=?", (task_id, user_id)
+            ).fetchone()
+            if old:
+                previous = json.loads(old["payload_json"])
+                if (previous["message"] != normalized
+                    or previous["context_card_id"] != context_card_id
+                    or previous["context_track_id"] != context_track_id
+                    or (session_id and previous["session_id"] != session_id)):
+                    raise ValueError("idempotency key is already bound to another request")
+                return {"taskId": task_id, "sessionId": previous["session_id"], "status": old["status"]}
+            begin_write(conn, namespace="dialogue-session", key=json.dumps([user_id, resolved_session_id]))
+            if conn.execute("SELECT 1 FROM agent_dialogue_sessions WHERE session_id=? AND user_id=?",
+                            (resolved_session_id, user_id)).fetchone() is None:
+                raise APIError.not_found("dialogue session not found")
             enqueue(
                 conn,
                 kind="dialogue",

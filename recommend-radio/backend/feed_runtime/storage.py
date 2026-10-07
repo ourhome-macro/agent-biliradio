@@ -54,6 +54,16 @@ class MinIOStorage:
                 if error.code not in {"BucketAlreadyOwnedByYou", "BucketAlreadyExists"}:
                     raise
 
+    def prepare_restore_bucket(self):
+        """Restore into a newly created namespace, never an active business bucket."""
+        from minio.error import S3Error
+        try:
+            self.client.make_bucket(self.config.bucket)
+        except S3Error as error:
+            if error.code in {"BucketAlreadyOwnedByYou","BucketAlreadyExists"}:
+                raise ValueError("Restore requires a new dedicated MinIO bucket") from None
+            raise
+
     def stat(self, key):
         from minio.error import S3Error
 

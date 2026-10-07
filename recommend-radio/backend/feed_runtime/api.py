@@ -33,7 +33,7 @@ def register_feed(app, *, music_services_factory):
         if not feed_enabled():
             return None
         slots = services().cache.request_slots
-        if not slots.acquire(blocking=False):
+        if not slots.acquire(timeout=0.25):
             raise APIError(ErrorCode.CONFLICT, "Feed request capacity exceeded; retry shortly", 503)
         g._feed_request_slots = slots
 
@@ -144,3 +144,7 @@ def register_feed(app, *, music_services_factory):
         return response
 
     app.register_blueprint(blueprint)
+    from .product_api import register_feed_product
+    register_feed_product(app, services_factory=services)
+    from .operations_api import register_feed_operations
+    register_feed_operations(app)

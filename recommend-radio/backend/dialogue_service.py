@@ -1,28 +1,24 @@
 from __future__ import annotations
 
-from music_agent import music_operation
 import json
 import time
 from pathlib import Path
 from typing import Any, Callable
+
 from amem_bridge import record_music_behavior
 from conversation_memory import ConversationMemoryService
 from database import DEFAULT_DB_PATH, LEGACY_OWNER_USER_ID, get_connection, init_db
-from error_code import APIError
-from full_trace import FullTrace, hash_text
-from profile_projector import _default_llm_client
-from recommendation_service import RecommendationService
-from request_spec import RequestInterpreter, RequestSpec
+from dialogue_repository import DialogueRepository
 from dialogue_rules import (
     CONFIRM_ACTIONS,
-    DialogueRoute,
-    ExtractedSignal,
     GENERIC_PROBES,
     MAX_MESSAGE_LENGTH,
     RECALL_RESULT_LIMIT,
     RECOMMENDATION_CARD_LIMIT,
     REJECT_ACTIONS,
     SESSION_TURN_LIMIT,
+    DialogueRoute,
+    ExtractedSignal,
     _canonical_route,
     _card_context,
     _casual_reply,
@@ -66,7 +62,12 @@ from dialogue_rules import (
     _trace_source_labels,
     _utc_now,
 )
-from dialogue_repository import DialogueRepository
+from error_code import APIError
+from full_trace import FullTrace, hash_text
+from music_agent import music_operation
+from profile_projector import _default_llm_client
+from recommendation_service import RecommendationService
+from request_spec import RequestInterpreter, RequestSpec
 
 
 def _finish_session_analysis(function):
@@ -160,7 +161,7 @@ class MusicDialogueService:
         if not normalized:
             raise APIError.validation_error("sessionId is required")
         with get_connection(self.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            self.repository._lock_session(conn, normalized)
             session = self.repository._load_session(conn, normalized)
             if session is None:
                 raise APIError.not_found("dialogue session not found")
@@ -790,7 +791,7 @@ class MusicDialogueService:
         card_snapshot: dict[str, Any]
 
         with get_connection(self.db_path) as conn:
-            card = self.repository._load_card(conn, card_id)
+            card = self.repository._load_card(conn, card_id, for_update=True)
             if card is None:
                 raise KeyError(card_id)
             session = self.repository._load_session(conn, card["session_id"])
@@ -832,7 +833,7 @@ class MusicDialogueService:
                     return self._serialize_session(conn, session)
 
         with get_connection(self.db_path) as conn:
-            card = self.repository._load_card(conn, card_id)
+            card = self.repository._load_card(conn, card_id, for_update=True)
             if card is None:
                 raise KeyError(card_id)
             payload = _json_loads(card["payload_json"])

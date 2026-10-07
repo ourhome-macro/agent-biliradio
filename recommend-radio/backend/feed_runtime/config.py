@@ -33,6 +33,8 @@ class FeedConfig:
     storage_bytes: int = 100 * 1024**3
     signed_seconds: int = 7200
     import_budget_seconds: float = 3600.0
+    seen_cooldown_seconds: int = 86400
+    exploration_ratio: float = 0.2
 
     @classmethod
     def from_env(cls, *, data_dir: Path | None = None) -> FeedConfig:
@@ -79,6 +81,8 @@ class FeedConfig:
             max_attempts=int(os.getenv("MEDIA_FETCH_MAX_ATTEMPTS", "3")),
             signed_seconds=int(os.getenv("MEDIA_SIGNED_SECONDS", "7200")),
             import_budget_seconds=float(os.getenv("MEDIA_IMPORT_BUDGET_SECONDS", "3600")),
+            seen_cooldown_seconds=int(os.getenv("FEED_SEEN_COOLDOWN_SECONDS", "86400")),
+            exploration_ratio=float(os.getenv("FEED_EXPLORATION_RATIO", "0.2")),
             max_bytes=int(os.getenv("MEDIA_MAX_BYTES", str(2 * 1024**3))),
             max_duration=int(os.getenv("MEDIA_MAX_DURATION_SECONDS", "3600")),
             scratch_bytes=int(os.getenv("MEDIA_SCRATCH_BYTES", str(10 * 1024**3))),
@@ -86,6 +90,8 @@ class FeedConfig:
         )
 
     def __post_init__(self):
+        if self.seen_cooldown_seconds < 0 or not 0 <= self.exploration_ratio <= 0.2:
+            raise ValueError("Invalid feed recommendation policy")
         if self.playback_seconds < 10:
             raise ValueError("Playback lease must allow the 5-second client heartbeat")
         if (self.workdir / "pyproject.toml").exists() or (self.workdir / ".minio.sys").exists():

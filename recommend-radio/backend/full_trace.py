@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import contextvars
-import threading
-from contextlib import contextmanager
 import hashlib
 import json
-from datetime import datetime, timedelta, timezone
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from time import perf_counter
 from typing import Any
 from uuid import uuid4
@@ -111,7 +111,7 @@ class FullTrace:
             sequence = conn.execute(
                 "SELECT COALESCE(MAX(sequence), 0) FROM ("
                 "SELECT sequence FROM evaluation_trace_events WHERE trace_id=? UNION ALL "
-                "SELECT sequence FROM evaluation_trace_spans WHERE trace_id=?)",
+                "SELECT sequence FROM evaluation_trace_spans WHERE trace_id=?) AS trace_sequences",
                 (trace_id, trace_id),
             ).fetchone()[0]
         if row is None:

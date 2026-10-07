@@ -44,8 +44,8 @@ from recommendation_service import RecommendationService
 from request_spec import RequestInterpreter
 from requests.adapters import HTTPAdapter
 from result import Result
-from settings_service import SettingsService
 from service_factory import MusicServices
+from settings_service import SettingsService
 from sse_event_client import SSEEventPublisher
 from stream_service import StreamService
 from trace_metrics import summarize_traces
@@ -63,6 +63,7 @@ def record_music_behavior(*args, **kwargs):
 
 app = Flask(__name__)
 from telemetry_setup import setup as setup_telemetry
+
 setup_telemetry('recommend-radio-api', app)
 
 @app.after_request
@@ -212,7 +213,11 @@ dialogue_task_service = DialogueTaskService(SSEEventPublisher())
 stream_service = StreamService(bili_client)
 register_monitoring(app, user_stats_provider=admin_service.monitoring_user_stats)
 from feed_runtime.api import register_feed
+
 register_feed(app, music_services_factory=_music_services_for_request)
+from following.api import register_following
+
+register_following(app)
 
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 _IMAGE_REDIRECT_STATUSES = {301, 302, 303, 307, 308}

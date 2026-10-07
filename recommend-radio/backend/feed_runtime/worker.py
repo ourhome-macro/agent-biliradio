@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-from database import get_connection
+from database import begin_write, get_connection
 from job_errors import JobPermanentFailure
 from models import Track
 
@@ -135,21 +135,23 @@ class MediaWorker:
             retry = bool(
                 complete and transport_job and transport_job["attempts"] < self.config.max_attempts
             )
+            unavailable = isinstance(error, MediaUnavailable)
+            unsupported = isinstance(error, ValueError) and str(error) in {
+                "UnsupportedMediaCodec",
+                "MediaDurationExceeded",
+                "MediaAssetQuotaExceeded",
+            }
             if str(error) not in {"MediaLeaseLost", "TransportLeaseLost"}:
                 self.repo.stop_import(
-                    job, status="queued" if retry else "failed", error_type=type(error).__name__
+                    job,
+                    status="queued" if retry else "failed",
+                    error_type=type(error).__name__,
+                    asset_status="retired"
+                    if unavailable
+                    else "unsupported"
+                    if unsupported
+                    else None,
                 )
-            unavailable = isinstance(error, MediaUnavailable)
-            if unavailable or (
-                isinstance(error, ValueError)
-                and str(error)
-                in {"UnsupportedMediaCodec", "MediaDurationExceeded", "MediaAssetQuotaExceeded"}
-            ):
-                with get_connection(self.repo.db_path) as conn:
-                    conn.execute(
-                        "UPDATE media_assets SET status=? WHERE asset_id=? AND status<>'ready'",
-                        ("retired" if unavailable else "unsupported", job["asset_id"]),
-                    )
             count("import", "retry" if retry else "failed")
             if retry:
                 raise RuntimeError("MediaObjectUploadRetry") from None
@@ -159,6 +161,9 @@ class MediaWorker:
             heartbeat.join(timeout=2)
             ACTIVE.dec()
             DURATION.labels("import").observe(time.monotonic() - import_started)
+            from .operations import media_measurement
+
+            media_measurement(self.repo, job, elapsed=time.monotonic() - import_started)
 
     def _acquire(self, job):
         prior_generations = job["fetch_attempts"]
@@ -170,7 +175,7 @@ class MediaWorker:
             sequence = prior_generations + generation
             work_key = f"{job['asset_id']}/{job['import_id']}/{job['lease_token']}/fetch-{sequence}"
             with get_connection(self.repo.db_path) as conn:
-                conn.execute("BEGIN IMMEDIATE")
+                begin_write(conn, namespace="media-asset", key=job["asset_id"])
                 self.repo.owned(conn, job)
                 conn.execute(
                     "UPDATE media_import_jobs SET work_key=?,fetch_attempts=? WHERE import_id=?",
@@ -271,6 +276,11 @@ class MediaWorker:
                             for line in playlist.splitlines()
                         )
                         if first_fragment:
+                            from .operations import media_measurement
+
+                            media_measurement(
+                                self.repo, job, first_fragment=time.time() - job["created_at"]
+                            )
                             DURATION.labels("cold_first_fragment").observe(
                                 time.time() - job["created_at"]
                             )

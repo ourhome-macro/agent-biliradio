@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from uuid import uuid4
 
 from error_code import APIError, ErrorCode
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from .metrics import count
 
@@ -49,6 +51,8 @@ class FeedCache:
             self.redis = client
         elif url:
             from redis import Redis
+            from redis.backoff import NoBackoff
+            from redis.retry import Retry
 
             self.redis = Redis.from_url(
                 url,
@@ -56,6 +60,8 @@ class FeedCache:
                 socket_timeout=0.15,
                 socket_connect_timeout=0.15,
                 max_connections=16,
+                retry=Retry(NoBackoff(), 0),
+                retry_on_timeout=False,
             )
         else:
             self.redis = None
@@ -65,10 +71,40 @@ class FeedCache:
         self._fallback = threading.BoundedSemaphore(8)
         self.request_slots = threading.BoundedSemaphore(8)
         self._refresh = ThreadPoolExecutor(max_workers=2, thread_name_prefix="feed-cache")
+        self._redis_state_lock = threading.Lock()
+        self._redis_retry_at = 0.0
+        self._redis_probe_running = False
+
+    def _redis_call(self, command, *args, probe=False, **kwargs):
+        if self.redis is None:
+            return None
+        with self._redis_state_lock:
+            recovering = self._redis_retry_at > 0
+            if recovering and (
+                self._redis_probe_running
+                or (not probe and time.monotonic() < self._redis_retry_at)
+            ):
+                raise RedisConnectionError("Feed cache Redis circuit is temporarily open")
+            if recovering:
+                self._redis_probe_running = True
+        try:
+            value = getattr(self.redis, command)(*args, **kwargs)
+        except (RedisConnectionError, RedisTimeoutError, OSError):
+            with self._redis_state_lock:
+                self._redis_retry_at = time.monotonic() + 2.0
+            raise
+        else:
+            with self._redis_state_lock:
+                self._redis_retry_at = 0.0
+            return value
+        finally:
+            if recovering:
+                with self._redis_state_lock:
+                    self._redis_probe_running = False
 
     def health(self) -> bool:
         try:
-            return self.redis is not None and bool(self.redis.ping())
+            return self.redis is not None and bool(self._redis_call("ping", probe=True))
         except Exception:
             return False
 
@@ -92,7 +128,7 @@ class FeedCache:
                     return dict(cached[1])
         value = None
         try:
-            raw = self.redis.get(cache_key) if self.redis else None
+            raw = self._redis_call("get", cache_key)
             value = json.loads(raw) if raw else None
         except Exception:
             count("cache", "redis_error")
@@ -135,11 +171,11 @@ class FeedCache:
         try:
             if self.redis:
                 try:
-                    acquired = bool(self.redis.set(lock_key, owner, nx=True, ex=5))
+                    acquired = bool(self._redis_call("set", lock_key, owner, nx=True, ex=5))
                     if not acquired:
                         for _ in range(20):
                             time.sleep(0.025)
-                            raw = self.redis.get(key)
+                            raw = self._redis_call("get", key)
                             if raw:
                                 value = json.loads(raw)
                                 if value["hard_at"] > time.time():
@@ -169,8 +205,8 @@ class FeedCache:
             }
             try:
                 if self.redis:
-                    self.redis.eval(
-                        _PUBLISH, 1, key, version, json.dumps(envelope), max(1, int(life))
+                    self._redis_call(
+                        "eval", _PUBLISH, 1, key, version, json.dumps(envelope), max(1, int(life))
                     )
             except Exception:
                 count("cache", "redis_error")
@@ -184,7 +220,7 @@ class FeedCache:
         finally:
             if acquired:
                 try:
-                    self.redis.eval(_UNLOCK, 1, lock_key, owner)
+                    self._redis_call("eval", _UNLOCK, 1, lock_key, owner)
                 except Exception:
                     count("cache", "redis_error")
             with self._lock:
@@ -203,8 +239,8 @@ class FeedCache:
     def publish_counter(self, content_id: str, value: dict) -> None:
         try:
             if self.redis:
-                self.redis.eval(
-                    _PUBLISH,
+                self._redis_call(
+                    "eval", _PUBLISH,
                     1,
                     f"{self.prefix}:counter:{content_id}",
                     value["version"],
@@ -219,8 +255,8 @@ class FeedCache:
         key = f"{self.prefix}:reaction:{user_id}:{content_id}"
         try:
             if self.redis:
-                self.redis.eval(
-                    _REACTION,
+                self._redis_call(
+                    "eval", _REACTION,
                     2,
                     key,
                     f"{self.prefix}:reactions:{user_id}",
@@ -235,7 +271,7 @@ class FeedCache:
 
     def counter(self, content_id: str, loader, *, min_version=0):
         try:
-            raw = self.redis.get(f"{self.prefix}:counter:{content_id}") if self.redis else None
+            raw = self._redis_call("get", f"{self.prefix}:counter:{content_id}")
             if raw and int(json.loads(raw).get("version", 0)) >= min_version:
                 count("counter", "redis_hit")
                 return json.loads(raw)

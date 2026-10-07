@@ -4,7 +4,7 @@ import hashlib
 import os
 import time
 
-from database import get_connection
+from database import begin_write, get_connection
 from error_code import APIError
 from models import Track
 
@@ -40,12 +40,14 @@ class ReactionService:
             raise APIError.validation_error("Invalid reaction or Idempotency-Key")
         now = time.time()
         with get_connection(self.repo.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            # Serialize aliases of the same user's track and idempotency keys.
+            begin_write(conn, namespace="reaction-user", key=user_id)
             content = conn.execute(
                 "SELECT * FROM feed_content WHERE content_id=?", (content_id,)
             ).fetchone()
             if not content or (content["scope"] != "public" and content["owner_id"] != user_id):
                 raise APIError.not_found("Content not found")
+            begin_write(conn, namespace="reaction-track", key=content["track_id"])
             if require_admitted and content["status"] != "admitted" and state != "neutral":
                 raise APIError.not_found("Content is unavailable")
             previous = conn.execute(
@@ -193,6 +195,13 @@ class ReactionService:
 
     def _apply_projection(self, conn, payload):
         event_id = payload["event_id"]
+        track = conn.execute(
+            "SELECT track_id FROM feed_content WHERE content_id=?", (payload["content_id"],)
+        ).fetchone()
+        if not track:
+            raise ValueError("Projection content no longer exists")
+        # A track's public/private aliases share the same lock, in either command order.
+        begin_write(conn, namespace="reaction-projection", key=track[0])
         digest = hashlib.sha256(encode(payload).encode()).hexdigest()
         inbox = conn.execute(
             "SELECT payload_hash FROM feed_inbox WHERE consumer='reaction' AND event_id=?",
@@ -233,7 +242,6 @@ class ReactionService:
 
     def project(self, payload):
         with get_connection(self.repo.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
             self._apply_projection(conn, payload)
             counter = dict(
                 conn.execute(
@@ -257,33 +265,56 @@ class ReactionService:
 
     def rebuild(self):
         with get_connection(self.repo.db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            conn.execute("DELETE FROM reaction_projection")
-            conn.execute(
-                "INSERT INTO reaction_projection "
-                "SELECT user_id,content_id,state,version FROM content_reactions"
-            )
-            conn.execute(
-                "UPDATE content_counters SET likes=0,dislikes=0,version=version+1,updated_at=?",
-                (time.time(),),
-            )
-            for row in conn.execute("""SELECT content_id,SUM(state='like') AS likes,
-                    SUM(state='dislike') AS dislikes
-                FROM content_reactions GROUP BY content_id""").fetchall():
+            ids = [
+                (r[0], r[1])
+                for r in conn.execute(
+                    "SELECT content_id,track_id FROM feed_content ORDER BY content_id"
+                )
+            ]
+        total_relations = 0
+        for content_id, track_id in ids:
+            with get_connection(self.repo.db_path) as conn:
+                begin_write(conn, namespace="reaction-projection", key=track_id)
+                # One snapshot supplies both contribution rows and the counter.
+                # New commands enqueue newer versions, applied after this lock releases.
+                relations = [
+                    dict(r)
+                    for r in conn.execute(
+                        "SELECT * FROM content_reactions WHERE content_id=?",
+                        (content_id,),
+                    )
+                ]
                 conn.execute(
-                    "UPDATE content_counters SET likes=?,dislikes=? WHERE content_id=?",
-                    (row["likes"], row["dislikes"], row["content_id"]),
+                    "DELETE FROM reaction_projection WHERE content_id=?",
+                    (content_id,),
                 )
-            counters = [dict(r) for r in conn.execute("SELECT * FROM content_counters")]
-            relations = [dict(r) for r in conn.execute("SELECT * FROM reaction_projection")]
-        if self.cache:
-            for counter in counters:
-                self.cache.publish_counter(counter["content_id"], counter)
-            for relation in relations:
-                self.cache.publish_reaction(
-                    relation["user_id"],
-                    relation["content_id"],
-                    relation["state"],
-                    relation["version"],
+                for relation in relations:
+                    conn.execute(
+                        "INSERT INTO reaction_projection VALUES (?,?,?,?)",
+                        (relation["user_id"], content_id, relation["state"], relation["version"]),
+                    )
+                conn.execute(
+                    "INSERT INTO content_counters(content_id,likes,dislikes,version,updated_at) "
+                    "VALUES (?,?,?,1,?) ON CONFLICT(content_id) DO UPDATE SET "
+                    "likes=excluded.likes,dislikes=excluded.dislikes,"
+                    "version=content_counters.version+1,updated_at=excluded.updated_at",
+                    (
+                        content_id,
+                        sum(r["state"] == "like" for r in relations),
+                        sum(r["state"] == "dislike" for r in relations),
+                        time.time(),
+                    ),
                 )
-        return {"contents": len(counters), "relations": len(relations)}
+                counter = dict(
+                    conn.execute(
+                        "SELECT * FROM content_counters WHERE content_id=?", (content_id,)
+                    ).fetchone()
+                )
+            if self.cache:
+                self.cache.publish_counter(content_id, counter)
+                for relation in relations:
+                    self.cache.publish_reaction(
+                        relation["user_id"], content_id, relation["state"], relation["version"]
+                    )
+            total_relations += len(relations)
+        return {"contents": len(ids), "relations": total_relations}

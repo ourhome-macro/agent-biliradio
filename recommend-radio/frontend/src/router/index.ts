@@ -32,6 +32,12 @@ const router = createRouter({
       component: () => import('@/views/FeedView.vue'),
     },
     {
+      path: '/admin/feed',
+      name: 'feed-operations',
+      component: () => import('@/views/FeedOperations.vue'),
+      meta: { requiresAdmin: true },
+    },
+    {
       path: '/favorites',
       name: 'favorites',
       component: () => import('@/views/FavoritesView.vue'),
@@ -95,6 +101,8 @@ router.beforeEach(async (to) => {
     auth.loginWithOidc()
     return false
   }
+
+  if (to.meta.requiresAdmin && !auth.isAdmin) return { name: 'home' }
 
   return true
 })

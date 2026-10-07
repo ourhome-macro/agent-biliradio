@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from music_agent import music_operation
 import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+
 from amem_bridge import NoopAmemBridge, record_music_behavior
 from bili_client import BiliClient
 from candidate_pool import CandidatePool
@@ -20,20 +20,18 @@ from keyword_governance import KeywordGovernance
 from library_service import LibraryService
 from memory_lifecycle import SceneMemoryService
 from models import Track
+from music_agent import music_operation
 from music_profile import MusicProfile
 from profile_projector import ProfileProjection, ProfileProjector
 from profile_statement_service import ProfileStatementService
 from profile_update import MusicProfileUpdatePipeline
-from recommendation_engine import RecommendationEngine, RecommendationRequest
-from request_spec import RequestSpec
-from settings_service import SettingsService
 from recommendation_contracts import (
-    CandidateDraft,
     DEFAULT_POOL_TARGET,
     DEFAULT_RECOMMENDATION_LIMIT,
     MAX_RECOMMENDATION_LIMIT,
     MEMORY_EVIDENCE_EVENTS,
     PROFILE_LIFECYCLE_EVENTS,
+    CandidateDraft,
     RecommendationCandidate,
     UserProfile,
     _candidate_to_trace,
@@ -45,6 +43,9 @@ from recommendation_contracts import (
     _profile_version,
     _utc_now,
 )
+from recommendation_engine import RecommendationEngine, RecommendationRequest
+from request_spec import RequestSpec
+from settings_service import SettingsService
 from user_profile_reader import UserProfileReader
 
 
@@ -109,12 +110,32 @@ class RecommendationService:
             fallback_profile=self.profile_reader._fallback_music_profile(legacy)
         ).profile
 
+    def eligible_feed_catalog(self, *, profile: MusicProfile, request_spec: RequestSpec,
+                              legacy_snapshot, catalog):
+        """Apply the serving hard gates before recording/work representatives are chosen."""
+        legacy = UserProfile(**{key: set(value) for key, value in legacy_snapshot.items()})
+        accepted = []
+        for track, facets in catalog:
+            draft = CandidateDraft(track=track, sources={"feed_catalog"},
+                                   tags=set(track.tags), facets=facets)
+            candidate = self.recommendation_engine.score(
+                draft, legacy, profile, "feed:eligibility", request_spec=request_spec)
+            accepted.append(
+                track.track_id not in legacy.recently_recommended_track_ids
+                and not self.recommendation_engine.policy._is_hard_filtered(candidate, profile, legacy)
+                and request_spec.matches_candidate(candidate.track, candidate.facets)
+            )
+        return accepted
+
     def decide_feed(self, *, profile: MusicProfile, request_spec: RequestSpec,
                       limit: int, excluded: set[str], trace_id: str,
                       legacy_snapshot=None, catalog=()):
         """Serving decision without shown events, recommendation writes or LLM calls."""
         legacy = UserProfile(**{key: set(value) for key, value in legacy_snapshot.items()}) if legacy_snapshot is not None else self.profile_reader._load_user_profile()
-        drafts = self._generate_candidates(legacy, request_spec)
+        # Feed supply has already been admitted, scoped and bounded. Pulling an
+        # independent library pool here can consume the ranking limit with tracks
+        # outside that supply and incorrectly turn a full page into an empty one.
+        drafts = {}
         for track, facets in catalog:
             drafts.setdefault(track.track_id, CandidateDraft(track=track, sources={"feed_catalog"},
                               tags=set(track.tags), facets=facets))

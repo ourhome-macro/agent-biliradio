@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 import re
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
-from database import get_connection
+from database import begin_write, get_connection
 
 HOT_TURN_LIMIT = 8
 WARM_TOPIC_TTL_HOURS = 24
@@ -66,6 +67,9 @@ class ConversationMemoryService:
             datetime.now(timezone.utc) + timedelta(hours=WARM_TOPIC_TTL_HOURS)
         ).isoformat()
         with get_connection(self.db_path) as conn:
+            begin_write(conn, namespace="conversation-warm", key=json.dumps([
+                self.user_id, normalized_scope_type, normalized_scope_key, normalized_memory_type
+            ]))
             conn.execute(
                 """
                 UPDATE conversation_warm_memories SET status='inactive'

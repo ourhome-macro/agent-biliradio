@@ -23,8 +23,13 @@ def async_jobs_enabled():
     return job_transport() != "disabled"
 
 
-@lru_cache(maxsize=4)
 def redis_bus(db_path, url):
+    from database import database_identity
+    return _redis_bus(str(db_path), url, database_identity(db_path))
+
+
+@lru_cache(maxsize=4)
+def _redis_bus(db_path, url, identity):
     from redis_stream_jobs import RedisJobBus
 
     return RedisJobBus(db_path, url)

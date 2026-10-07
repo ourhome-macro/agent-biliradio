@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import atexit
 import json
 import logging
 import os
 import threading
 import time
-import atexit
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote
@@ -14,9 +14,9 @@ from celery import Celery
 from celery.signals import worker_ready, worker_shutdown
 from database import DEFAULT_DB_PATH, get_connection, init_db
 from durable_jobs import claim, finish, publish_pending
+from job_transport import job_transport
 from kombu import Exchange, Queue
 from rabbitmq_bus import RabbitMQSettings
-from job_transport import job_transport
 
 LOGGER = logging.getLogger("recommend-radio.tasks")
 _outbox_stop = threading.Event()
@@ -73,6 +73,7 @@ app.conf.update(
 
 def publish_job(job_id: str, kind: str) -> None:
     from telemetry_setup import setup
+
     from agent_memory_runtime.telemetry import carrier, span
     setup('radio-outbox')
     queue = "radio.media.v1" if kind == "media_import" else "radio.events.v2" if kind in {"behavior", "sse", "feed_projection", "feed_asset_ready"} else "radio.jobs.v2"
@@ -89,6 +90,8 @@ def _outbox_loop() -> None:
     from job_transport import publish_job as publish_selected
     while not _outbox_stop.is_set():
         try:
+            from following.scheduler import periodic_tick
+            periodic_tick(DEFAULT_DB_PATH)
             publish_pending(DEFAULT_DB_PATH, publish_selected)
         except Exception:
             LOGGER.exception("Outbox dispatch failed; persisted jobs will be retried")
@@ -166,9 +169,10 @@ def execute_job(self, job_id: str) -> None:
 
 
 def _execute_durable(self, job_id: str) -> None:
-    from telemetry_setup import setup
-    from agent_memory_runtime.telemetry import span, flush
     from music_agent import current_job_id
+    from telemetry_setup import setup
+
+    from agent_memory_runtime.telemetry import flush, span
     setup('radio-worker')
     init_db()
     with get_connection() as conn:
@@ -206,6 +210,18 @@ def execute_media_job(self, job_id: str) -> None:
 
 
 def dispatch(job: dict):
+    if job["kind"] in {"creator_follow", "creator_follow_verify", "creator_follow_probe", "following_sync", "creator_supply"}:
+        payload = json.loads(job["payload_json"])
+        if job["kind"] == "creator_supply":
+            from feed_runtime.following_feed import refresh_creator
+            return refresh_creator(DEFAULT_DB_PATH, payload["creator_id"], version=payload.get("version"))
+        from following.service import FollowingService
+        service = FollowingService(DEFAULT_DB_PATH)
+        if job["kind"] in {"creator_follow", "creator_follow_verify"}:
+            from following.worker import execute_follow
+            return execute_follow(service, job, payload, verify=job["kind"] == "creator_follow_verify")
+        from following.sync import execute_sync, probe
+        return probe(service, job, payload) if job["kind"] == "creator_follow_probe" else execute_sync(service, job, payload)
     payload = json.loads(job["payload_json"])
     if job["kind"] in {"media_import", "feed_projection", "feed_asset_ready"}:
         from feed_runtime.config import FeedConfig
