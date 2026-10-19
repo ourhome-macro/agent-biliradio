@@ -47,7 +47,7 @@ def test_publish_crash_leaves_retryable_outbox_and_duplicate_delivery_is_safe(pa
     with get_connection(path) as conn:
         job = claim(conn, "job", now=132)
     with get_connection(path) as conn:
-        finish(conn, job, result={"accepted": True})
+        finish(conn, job, result={"accepted": True}, now=132.5)
     with get_connection(path) as conn:
         assert claim(conn, "job", now=133) is None
     assert len(calls) == 2
@@ -122,7 +122,7 @@ def test_outbox_publishes_only_lane_head_until_it_completes(path):
         first = claim(conn, "first", now=101)
     assert first is not None
     with get_connection(path) as conn:
-        finish(conn, first, result={"delivered": True})
+        finish(conn, first, result={"delivered": True}, now=101.5)
 
     assert publish_pending(path, lambda job_id, kind: published.append(job_id), now=102) == 1
     assert published[-1] == "second"
@@ -138,7 +138,7 @@ def test_expired_owner_cannot_overwrite_reclaimed_job(path):
     with get_connection(path) as conn:
         new = claim(conn, "j", now=13)
     with get_connection(path) as conn:
-        finish(conn, old, result="late old result")
+        finish(conn, old, result="late old result", now=14)
     with get_connection(path) as conn:
         row = conn.execute("SELECT * FROM durable_jobs WHERE job_id=?", ("j",)).fetchone()
         assert row["lease_token"] == new["lease_token"]

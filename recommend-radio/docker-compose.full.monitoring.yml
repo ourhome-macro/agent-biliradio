@@ -1,6 +1,16 @@
 services:
+  otel-collector:
+    image: otel/opentelemetry-collector:0.147.0
+    restart: unless-stopped
+    user: "0:0"
+    command: ["--config=/etc/otel/collector.yaml"]
+    volumes:
+      - ./deploy/otel/collector.yaml:/etc/otel/collector.yaml:ro
+      - otel-traces:/var/lib/otel
+    mem_limit: 256m
   backend:
     environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       ENABLE_METRICS: "true"
       PROMETHEUS_MULTIPROC_DIR: /run/prometheus-multiproc
       PROMETHEUS_QUERY_URL: http://prometheus:9090
@@ -12,6 +22,18 @@ services:
     networks:
       - default
       - monitoring
+
+  relay:
+    environment: &trace-env
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  jobs-events:
+    environment: *trace-env
+  media-worker:
+    environment: *trace-env
+  search-worker:
+    environment: *trace-env
+  cache-invalidator:
+    environment: *trace-env
 
   prometheus:
     image: prom/prometheus:v3.12.0
@@ -116,6 +138,7 @@ networks:
     internal: true
 
 volumes:
+  otel-traces:
   prometheus-data:
   alertmanager-data:
   grafana-data:

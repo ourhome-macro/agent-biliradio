@@ -22,6 +22,7 @@ from agent_memory_runtime.agent.models import (
     utc_now_iso,
 )
 from agent_memory_runtime.agent.stores.codec import JsonStateCodec, StateCodec
+from agent_memory_runtime.agent.stores.leases import assert_execution_lease
 from agent_memory_runtime.memory.stores.sqlite_manager import SQLiteTransactionManager
 
 
@@ -41,6 +42,17 @@ class SQLiteAgentStateStore:
         )
         self.path = self._manager.path
         self._codec = codec or JsonStateCodec()
+
+    def transaction(self):
+        return self._manager.transaction()
+
+    def _assert_lease(self, connection, run_id, lease_token):
+        if lease_token is not None:
+            row = connection.execute(
+                "SELECT payload FROM agent_runs WHERE run_id=?", (run_id,)
+            ).fetchone()
+            run = None if row is None else AgentRun.from_dict(self._codec.decode(row[0]))
+            assert_execution_lease(run, lease_token)
 
     def create_run(self, run: AgentRun) -> AgentRun:
         with self._manager.connection() as connection:
@@ -210,8 +222,10 @@ class SQLiteAgentStateStore:
         checkpoint: AgentCheckpoint,
         *,
         expected_version: int | None,
+        lease_token: str | None = None,
     ) -> AgentCheckpoint:
         with self._manager.connection() as connection:
+            self._assert_lease(connection, checkpoint.run_id, lease_token)
             if not connection.execute(
                 "SELECT 1 FROM agent_runs WHERE run_id = ?", (checkpoint.run_id,)
             ).fetchone():
@@ -257,14 +271,11 @@ class SQLiteAgentStateStore:
             row = connection.execute(
                 "SELECT payload FROM agent_checkpoints WHERE run_id = ?", (run_id,)
             ).fetchone()
-        return (
-            None
-            if row is None
-            else AgentCheckpoint.from_dict(self._codec.decode(row[0]))
-        )
+        return None if row is None else AgentCheckpoint.from_dict(self._codec.decode(row[0]))
 
-    def save_turn(self, turn: AgentTurn) -> AgentTurn:
+    def save_turn(self, turn: AgentTurn, *, lease_token: str | None = None) -> AgentTurn:
         with self._manager.connection() as connection:
+            self._assert_lease(connection, turn.run_id, lease_token)
             row = connection.execute(
                 "SELECT turn_id FROM agent_turns WHERE run_id = ? AND sequence = ?",
                 (turn.run_id, turn.sequence),
@@ -304,8 +315,11 @@ class SQLiteAgentStateStore:
             ).fetchall()
         return [AgentTurn.from_dict(self._codec.decode(row[0])) for row in rows]
 
-    def create_tool_call(self, record: ToolCallRecord) -> ToolCallRecord:
+    def create_tool_call(
+        self, record: ToolCallRecord, *, lease_token: str | None = None
+    ) -> ToolCallRecord:
         with self._manager.connection() as connection:
+            self._assert_lease(connection, record.run_id, lease_token)
             run_row = connection.execute(
                 "SELECT tenant_id FROM agent_runs WHERE run_id = ?", (record.run_id,)
             ).fetchone()
@@ -319,9 +333,7 @@ class SQLiteAgentStateStore:
             if row is not None:
                 existing = ToolCallRecord.from_dict(self._codec.decode(row[0]))
                 if _tool_identity(existing) != _tool_identity(record):
-                    raise AgentRunConflictError(
-                        "tool call_id is already bound to a different call"
-                    )
+                    raise AgentRunConflictError("tool call_id is already bound to a different call")
                 return existing
             connection.execute(
                 """
@@ -345,19 +357,17 @@ class SQLiteAgentStateStore:
             row = connection.execute(
                 "SELECT payload FROM agent_tool_calls WHERE call_id = ?", (call_id,)
             ).fetchone()
-        return (
-            None
-            if row is None
-            else ToolCallRecord.from_dict(self._codec.decode(row[0]))
-        )
+        return None if row is None else ToolCallRecord.from_dict(self._codec.decode(row[0]))
 
     def update_tool_call(
         self,
         record: ToolCallRecord,
         *,
         expected_version: int,
+        lease_token: str | None = None,
     ) -> ToolCallRecord:
         with self._manager.connection() as connection:
+            self._assert_lease(connection, record.run_id, lease_token)
             row = connection.execute(
                 "SELECT payload FROM agent_tool_calls WHERE call_id = ?", (record.call_id,)
             ).fetchone()
@@ -393,20 +403,18 @@ class SQLiteAgentStateStore:
             ).fetchall()
         return [ToolCallRecord.from_dict(self._codec.decode(row[0])) for row in rows]
 
-    def create_approval(self, approval: ApprovalRecord) -> ApprovalRecord:
+    def create_approval(
+        self, approval: ApprovalRecord, *, lease_token: str | None = None
+    ) -> ApprovalRecord:
         with self._manager.connection() as connection:
+            self._assert_lease(connection, approval.run_id, lease_token)
             call_row = connection.execute(
                 "SELECT run_id, tenant_id FROM agent_tool_calls WHERE call_id = ?",
                 (approval.call_id,),
             ).fetchone()
             if call_row is None:
-                raise AgentRunNotFoundError(
-                    f"tool call {approval.call_id!r} was not found"
-                )
-            if (
-                str(call_row[0]) != approval.run_id
-                or str(call_row[1]) != approval.tenant_id
-            ):
+                raise AgentRunNotFoundError(f"tool call {approval.call_id!r} was not found")
+            if str(call_row[0]) != approval.run_id or str(call_row[1]) != approval.tenant_id:
                 raise AgentIdentityError("approval identity does not match its tool call")
             row = connection.execute(
                 "SELECT payload FROM agent_approvals WHERE call_id = ?", (approval.call_id,)

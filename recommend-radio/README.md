@@ -1,6 +1,6 @@
 # Recommend Radio
 
-Recommend Radio 是 AMEM 的 B 站音乐推荐应用：Vue 前端、Flask API、AMEM gRPC 和记忆驱动的候选池推荐。
+Recommend Radio 是 AMEM 的 B 站音乐推荐应用：Vue 前端、Python Web（Flask API + 异步 SSE）、embedded AMEM 和后台 Worker。
 
 ## 能力
 
@@ -18,19 +18,30 @@ Recommend Radio 是 AMEM 的 B 站音乐推荐应用：Vue 前端、Flask API、
 
 ## 启动
 
+默认 Docker 栈使用 MySQL、Kafka、Redis 和 Elasticsearch；AMEM 默认嵌入运行。Windows 可通过管理脚本创建隔离配置并启动：
+
 ```powershell
-docker compose up -d --build
+.\scripts\manage-docker-stack.ps1 -Action prepare
+.\scripts\manage-docker-stack.ps1 -Action up
 ```
 
-访问 `http://localhost:3000`。
+默认 `docker-compose.yml` 引用 `docker-compose.full.yml`。私有环境文件保存在 `server-data/kafka-acceptance/private.env`，不得提交到仓库；MinIO 按脚本配置使用独立宿主进程或外部对象存储。
+
+Linux 宿主部署可参考 `deploy/radio.env.example`、`deploy/systemd/` 和 `deploy/Caddyfile.host`：先构建 `frontend/dist`、安装 `backend/requirements.txt` 与根包，配置环境并运行迁移，再启动 Web、relay 及 Kafka workers。首次切换前备份业务数据库、Agent 状态库和媒体目录。
+
+默认隔离 Docker 栈访问 `http://127.0.0.1:13000`；实际端口以私有配置为准。
+
+Agent 对账、任务恢复和冷内容连续播放的操作与验证见 [修复说明](../doc/agent-feed-recovery-fixes-2026-10-19.md)。
 
 ## 组件
 
 ```text
-frontend :3000       Vue 静态前端和 API 代理
-backend  :5000       对话、播放、Discovery、候选池、推荐 API
-amem     :9090       记忆、画像、审计与检索 gRPC 服务
-embedding :8001      宿主 bge-m3 OpenAI-compatible embedding 服务
+Frontend :13000      Vue 前端和 API 代理
+Python Web :15000    Flask API、异步 SSE、媒体授权
+Kafka relay/workers  对话、发现、行为、媒体、搜索与缓存投影
+MySQL / Redis / ES   业务事实、缓存与搜索读模型
+MinIO                媒体对象存储
+embedding :8001      可选的宿主 bge-m3 OpenAI-compatible 服务
 ```
 
 ## 推荐原则

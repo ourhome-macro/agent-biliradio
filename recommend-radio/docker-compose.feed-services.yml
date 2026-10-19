@@ -1,17 +1,9 @@
-# Add to the host-services topology; MinIO uses the existing host deployment.
+# Standalone cache-only companion for host processes; Kafka is not stored in Redis.
+name: radio-cache
 services:
-  redis:
-    image: redis:7.4-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
-    ports:
-      - "${FEED_REDIS_BIND_ADDRESS:-127.0.0.1}:${FEED_REDIS_PORT:-6379}:6379"
-    volumes:
-      - feed-redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+  redis-cache:
+    extends:
+      file: docker-compose.infra.yml
+      service: redis-cache
 volumes:
-  feed-redis-data:
+  redis-cache-data:

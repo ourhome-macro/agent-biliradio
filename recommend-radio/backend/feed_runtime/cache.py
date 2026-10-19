@@ -328,3 +328,20 @@ class FeedCache:
         self._refresh.shutdown(wait=False, cancel_futures=True)
         if self.redis:
             self.redis.close()
+
+    def invalidate_content(self, content_id):
+        """Best-effort acceleration; every reader still authorizes current SQL facts."""
+        if not isinstance(content_id, str) or not content_id or any(c in content_id for c in "*?[]"):
+            raise ValueError("An authoritative content identity is required")
+        prefix = f"{self.prefix}:content:{content_id}:"
+        with self._lock:
+            for key in list(self._local):
+                if key.startswith(prefix):
+                    self._local.pop(key, None)
+        cursor, removed = 0, 0
+        while True:
+            cursor, keys = self._redis_call("scan", cursor, match=prefix+"*", count=100)
+            if keys:
+                removed += int(self._redis_call("delete", *keys))
+            if int(cursor) == 0:
+                return removed

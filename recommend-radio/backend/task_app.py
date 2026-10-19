@@ -12,7 +12,7 @@ from urllib.parse import quote
 
 from celery import Celery
 from celery.signals import worker_ready, worker_shutdown
-from database import DEFAULT_DB_PATH, get_connection, init_db
+from database import DATA_DIR, DEFAULT_DB_PATH, database_identity, get_connection, init_db, mysql_target
 from durable_jobs import claim, finish, publish_pending
 from job_transport import job_transport
 from kombu import Exchange, Queue
@@ -23,7 +23,7 @@ _outbox_stop = threading.Event()
 _outbox_thread: threading.Thread | None = None
 _embedding_thread: threading.Thread | None = None
 _dream_owner = None
-if job_transport() == "redis_stream":
+if job_transport() in {"redis_stream", "kafka"}:
     # Redis Stream workers reuse domain dispatch; they do not connect through Celery.
     settings = None
     broker = "memory://"
@@ -93,6 +93,10 @@ def _outbox_loop() -> None:
             from following.scheduler import periodic_tick
             periodic_tick(DEFAULT_DB_PATH)
             publish_pending(DEFAULT_DB_PATH, publish_selected)
+            if job_transport() == "kafka":
+                from domain_outbox import DomainOutboxRelay
+                from job_transport import kafka_bus
+                DomainOutboxRelay(DEFAULT_DB_PATH, kafka_bus(str(DEFAULT_DB_PATH))).run_once()
         except Exception:
             LOGGER.exception("Outbox dispatch failed; persisted jobs will be retried")
         _outbox_stop.wait(1)
@@ -209,14 +213,23 @@ def execute_media_job(self, job_id: str) -> None:
     return _execute_durable(self, job_id)
 
 
-def dispatch(job: dict):
+def _sse_publisher(db_path):
+    from sse_event_client import SSEEventPublisher
+    # A legacy HTTP gateway is configured for the process's default authority.
+    # Explicit jobs for another database must append into that database locally.
+    remote = None if database_identity(db_path) == database_identity(DEFAULT_DB_PATH) else ""
+    return SSEEventPublisher(db_path=db_path, url=remote)
+
+
+def dispatch(job: dict, db_path=None):
+    resolved_db = db_path if db_path is not None else DEFAULT_DB_PATH
     if job["kind"] in {"creator_follow", "creator_follow_verify", "creator_follow_probe", "following_sync", "creator_supply"}:
         payload = json.loads(job["payload_json"])
         if job["kind"] == "creator_supply":
             from feed_runtime.following_feed import refresh_creator
-            return refresh_creator(DEFAULT_DB_PATH, payload["creator_id"], version=payload.get("version"))
+            return refresh_creator(resolved_db, payload["creator_id"], version=payload.get("version"))
         from following.service import FollowingService
-        service = FollowingService(DEFAULT_DB_PATH)
+        service = FollowingService(resolved_db)
         if job["kind"] in {"creator_follow", "creator_follow_verify"}:
             from following.worker import execute_follow
             return execute_follow(service, job, payload, verify=job["kind"] == "creator_follow_verify")
@@ -226,10 +239,11 @@ def dispatch(job: dict):
     if job["kind"] in {"media_import", "feed_projection", "feed_asset_ready"}:
         from feed_runtime.config import FeedConfig
         from feed_runtime.services import FeedServices
-        config = FeedConfig.from_env(data_dir=Path(DEFAULT_DB_PATH).parent)
+        data_dir = DATA_DIR if mysql_target(resolved_db) else Path(resolved_db).parent
+        config = FeedConfig.from_env(data_dir=data_dir)
         if job["kind"] == "media_import" and not config.enabled:
             from job_errors import JobPermanentFailure
-            with get_connection() as conn:
+            with get_connection(resolved_db) as conn:
                 acquired = conn.execute("SELECT complete_source FROM media_import_jobs WHERE import_id=?",
                                         (payload["import_id"],)).fetchone()
                 conn.execute("""UPDATE media_import_jobs SET status='cancelled',stage='cancelled',
@@ -238,7 +252,7 @@ def dispatch(job: dict):
                     (time.time(),payload["import_id"],time.time()))
             if not acquired or not acquired["complete_source"]:
                 raise JobPermanentFailure("Feed is disabled; no new imports are executed")
-        runtime = FeedServices(user_id=job["user_id"], config=config)
+        runtime = FeedServices(user_id=job["user_id"], db_path=resolved_db, config=config)
         if job["kind"] == "media_import":
             from feed_runtime.worker import MediaWorker
             return MediaWorker(runtime.repo, config, runtime.storage).run(payload["import_id"], transport_job=job)
@@ -247,11 +261,11 @@ def dispatch(job: dict):
         # Source content, not private preference memory, gets a semantic projection.
         from content_embeddings import ContentEmbeddingService
         from models import Track
-        with get_connection() as conn:
+        with get_connection(resolved_db) as conn:
             asset = conn.execute("""SELECT c.metadata_json FROM media_assets a JOIN feed_content c
                 ON c.content_id=a.content_id WHERE a.asset_id=? AND a.status='ready' AND c.status='admitted'""",(payload["asset_id"],)).fetchone()
         if asset:
-            return ContentEmbeddingService(str(DEFAULT_DB_PATH),user_id=job["user_id"]).ensure_text_embeddings(
+            return ContentEmbeddingService(str(resolved_db),user_id=job["user_id"]).ensure_text_embeddings(
                 [Track.from_dict(json.loads(asset["metadata_json"]))])
         return {"ready":False,"contentId":payload["content_id"]}
     if job["kind"] == "behavior":
@@ -266,9 +280,7 @@ def dispatch(job: dict):
         bridge, _projector = _worker_memory()
         return bridge.record_behavior(payload)
     if job["kind"] == "sse":
-        from sse_event_client import SSEEventPublisher
-
-        publisher = SSEEventPublisher()
+        publisher = _sse_publisher(resolved_db)
         try:
             return publisher.publish_http(**payload) if publisher.url else publisher.publish(**payload)
         finally:
@@ -283,7 +295,7 @@ def dispatch(job: dict):
         None if os.getenv("AMEM_TRANSPORT", "embedded").lower() == "grpc"
         else _worker_memory()
     )
-    with MusicServices(user_id=user_id, amem_runtime=memory) as services:
+    with MusicServices(user_id=user_id, db_path=resolved_db, amem_runtime=memory) as services:
         if job["kind"] in {"discovery", "evolution"}:
             from request_spec import RequestSpec
 
@@ -307,10 +319,9 @@ def dispatch(job: dict):
             return status
         if job["kind"] in {"dialogue", "discovery_watch"}:
             from dialogue_task_service import DialogueTaskService
-            from sse_event_client import SSEEventPublisher
 
             service = services.dialogue
-            publisher = SSEEventPublisher()
+            publisher = _sse_publisher(resolved_db)
             tasks = DialogueTaskService(publisher)
             try:
                 if job["kind"] == "dialogue":

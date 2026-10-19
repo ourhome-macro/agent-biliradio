@@ -135,16 +135,15 @@ class FeedRepository:
 
     @staticmethod
     def authorize(row, user_id: str):
-        if row is None:
-            raise APIError.not_found("Content not found")
-        if row["scope"] != "public" and row["owner_id"] != user_id:
-            raise APIError.not_found("Content not found")
-        if row["status"] != "admitted":
-            raise APIError.not_found("Content is unavailable")
+        from resource_policy import ResourcePolicy
+        if not ResourcePolicy.base_visible(row, user_id):
+            raise APIError.not_found("Content not found or unavailable")
         return dict(row)
 
     def content(self, content_id: str, user_id: str):
         with get_connection(self.db_path) as conn:
+            from resource_policy import ResourcePolicy
+            ResourcePolicy(self.db_path).require(user_id, content_id, conn=conn)
             return self.authorize(
                 conn.execute(
                     "SELECT * FROM feed_content WHERE content_id=?", (content_id,)
@@ -159,7 +158,7 @@ class FeedRepository:
                 FROM feed_content c LEFT JOIN content_media_links l ON l.content_id=c.content_id
                 LEFT JOIN media_assets a ON a.asset_id=l.asset_id
                 LEFT JOIN content_reactions r ON r.content_id=c.content_id AND r.user_id=?
-                WHERE c.status='admitted' AND (c.scope='public' OR c.owner_id=?)
+                WHERE c.status='admitted' AND c.resource_kind='video' AND (c.scope='public' OR c.owner_id=?)
                   AND COALESCE(a.status,'empty') NOT IN ('unsupported','retired')
                   AND COALESCE(r.state,'neutral')<>'dislike'
                   AND (? IS NULL OR NOT EXISTS (
@@ -181,7 +180,15 @@ class FeedRepository:
                     max(0, int(offset)),
                 ),
             ).fetchall()
-        return [dict(row) for row in rows]
+        from resource_policy import ResourcePolicy
+        allowed = ResourcePolicy(self.db_path).resolve_many(user_id, [row["content_id"] for row in rows], action="feed")
+        output = []
+        for source in rows:
+            row = dict(source)
+            if row["content_id"] in allowed:
+                row["track_id"] = row["track_id"] or row["content_id"]
+                output.append(row)
+        return output
 
     def import_job(self, import_id):
         with get_connection(self.db_path) as conn:

@@ -49,9 +49,17 @@ class ReactionService:
             ).fetchone()
             if not content or (content["scope"] != "public" and content["owner_id"] != user_id):
                 raise APIError.not_found("Content not found")
-            begin_write(conn, namespace="reaction-track", key=content["track_id"])
+            begin_write(
+                conn, namespace="reaction-track", key=content["track_id"] or f"content:{content_id}"
+            )
             if require_admitted and content["status"] != "admitted" and state != "neutral":
                 raise APIError.not_found("Content is unavailable")
+            if require_admitted and state != "neutral":
+                from resource_policy import ResourcePolicy
+
+                ResourcePolicy(self.repo.db_path).require(
+                    user_id, content_id, action="search", conn=conn
+                )
             previous = conn.execute(
                 "SELECT * FROM reaction_commands WHERE user_id=? AND command_id=?",
                 (user_id, command_id),
@@ -80,7 +88,7 @@ class ReactionService:
                     version=excluded.version,updated_at=excluded.updated_at""",
                     (user_id, content_id, state, version, now),
                 )
-                if state == "like":
+                if state == "like" and content["track_id"] is not None:
                     conn.execute(
                         "INSERT OR IGNORE INTO likes(user_id,track_id,created_at) VALUES (?,?,?)",
                         (
@@ -89,7 +97,7 @@ class ReactionService:
                             time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)),
                         ),
                     )
-                else:
+                elif content["track_id"] is not None:
                     conn.execute(
                         "DELETE FROM likes WHERE user_id=? AND track_id=?",
                         (user_id, content["track_id"]),
@@ -122,19 +130,20 @@ class ReactionService:
                 behavior = (
                     "liked" if state == "like" else "dislike" if state == "dislike" else "unliked"
                 )
-                enqueue_behavior(
-                    conn,
-                    user_id=user_id,
-                    event=behavior,
-                    scene="library",
-                    track=Track.from_dict(json.loads(content["metadata_json"])),
-                    event_id=event_id,
-                    payload={
-                        "contentId": content_id,
-                        "relationVersion": version,
-                        "desiredState": state,
-                    },
-                )
+                if content["track_id"] is not None:
+                    enqueue_behavior(
+                        conn,
+                        user_id=user_id,
+                        event=behavior,
+                        scene="library",
+                        track=Track.from_dict(json.loads(content["metadata_json"])),
+                        event_id=event_id,
+                        payload={
+                            "contentId": content_id,
+                            "relationVersion": version,
+                            "desiredState": state,
+                        },
+                    )
             counters = conn.execute(
                 "SELECT likes,dislikes,version FROM content_counters WHERE content_id=?",
                 (content_id,),
@@ -203,7 +212,11 @@ class ReactionService:
         if not track:
             raise ValueError("Projection content no longer exists")
         # A track's public/private aliases share the same lock, in either command order.
-        begin_write(conn, namespace="reaction-projection", key=track[0])
+        begin_write(
+            conn,
+            namespace="reaction-projection",
+            key=track[0] or f"content:{payload['content_id']}",
+        )
         digest = hashlib.sha256(encode(payload).encode()).hexdigest()
         inbox = conn.execute(
             "SELECT payload_hash FROM feed_inbox WHERE consumer='reaction' AND event_id=?",
@@ -281,7 +294,9 @@ class ReactionService:
         total_relations = 0
         for content_id, track_id in ids:
             with get_connection(self.repo.db_path) as conn:
-                begin_write(conn, namespace="reaction-projection", key=track_id)
+                begin_write(
+                    conn, namespace="reaction-projection", key=track_id or f"content:{content_id}"
+                )
                 # One snapshot supplies both contribution rows and the counter.
                 # New commands enqueue newer versions, applied after this lock releases.
                 relations = [

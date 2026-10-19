@@ -111,13 +111,18 @@ const playlistError = ref('')
 const playlistNameInput = ref<HTMLInputElement | null>(null)
 
 import { fetchSettings } from '@/api/client'
+import { ugcApi } from '@/api/ugc'
 const feedEnabled = ref(false)
+const ugcEnabled = ref(false), contentSearchEnabled = ref(false)
 onMounted(() => { void fetchSettings().then(value => { feedEnabled.value = !!value.feedEnabled }).catch(() => undefined) })
+onMounted(() => { void ugcApi.capabilities().then(value => { ugcEnabled.value = value.ugcEnabled; contentSearchEnabled.value = value.contentSearchEnabled }).catch(() => undefined) })
 const navItems = computed(() => [
   { to: '/', label: '发现', icon: 'home' },
   ...(feedEnabled.value ? [{ to: '/feed', label: '音乐视频', icon: 'play' }] : []),
   ...(feedEnabled.value && auth.isAdmin ? [{ to: '/admin/feed', label: '视频运营', icon: 'list' }] : []),
-  { to: '/search', label: '搜索', icon: 'search' },
+  ...(contentSearchEnabled.value ? [{ to: '/content-search', label: '内容搜索', icon: 'search' }] : []),
+  ...(ugcEnabled.value ? [{ to: '/studio', label: '创作中心', icon: 'plus' }] : []),
+  { to: '/search', label: 'B 站搜索', icon: 'search' },
   { to: '/favorites', label: 'B 站收藏夹', icon: 'star' },
   { to: '/agent', label: '音乐助手', icon: 'message' },
 ])

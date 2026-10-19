@@ -224,32 +224,121 @@ def recover_expired(conn, *, now: float | None = None) -> None:
     )
 
 
-def publish_pending(db_path, publisher, *, now: float | None = None) -> int:
+def claim_publish_batch(db_path, *, now: float | None = None, limit=32, lease_seconds=30):
     from database import get_connection
 
     now = time.time() if now is None else now
     with get_connection(db_path) as conn:
-        begin_write(conn, namespace="job-publisher", key="outbox")
         recover_expired(conn, now=now)
-        rows = conn.execute(
-            """SELECT j.job_id,j.kind FROM durable_jobs AS j
-            WHERE j.status='queued' AND j.next_publish_at<=?
+        if getattr(conn, "dialect", None) == "mysql":
+            import sqlalchemy as sa
+
+            table = conn.tables["durable_jobs"]
+            predecessor = table.alias("predecessor")
+            blocked = sa.exists(
+                sa.select(1).where(
+                    predecessor.c.lane == table.c.lane,
+                    predecessor.c.job_id != table.c.job_id,
+                    sa.or_(
+                        predecessor.c.status.in_(("running", "needs_reconciliation")),
+                        sa.and_(predecessor.c.status == "queued", predecessor.c.id < table.c.id),
+                    ),
+                )
+            )
+            statement = (
+                sa.select(table)
+                .where(
+                    table.c.status == "queued",
+                    table.c.next_publish_at <= now,
+                    table.c.publish_lease_until <= now,
+                    sa.or_(table.c.lane == "", ~blocked),
+                )
+                .order_by(table.c.next_publish_at, table.c.id)
+                .with_hint(table, "FORCE INDEX (idx_durable_jobs_pending)", dialect_name="mysql")
+                .limit(limit)
+                .with_for_update(skip_locked=True)
+            )
+            rows = [dict(row) for row in conn.connection.execute(statement).mappings()]
+        else:
+            if not conn.in_transaction:
+                conn.execute("BEGIN IMMEDIATE")
+            rows = [
+                dict(row)
+                for row in conn.execute(
+                    """SELECT j.* FROM durable_jobs AS j
+            WHERE j.status='queued' AND j.next_publish_at<=? AND j.publish_lease_until<=?
               AND (j.lane='' OR NOT EXISTS (
                 SELECT 1 FROM durable_jobs AS predecessor
                 WHERE predecessor.lane=j.lane AND predecessor.job_id<>j.job_id
                   AND (predecessor.status IN ('running','needs_reconciliation')
                        OR (predecessor.status='queued' AND predecessor.id<j.id))
               ))
-            ORDER BY j.created_at,j.id LIMIT 32""",
-            (now,),
-        ).fetchall()
-        # Reservation is recoverable. A dispatcher killed here retries after 30s.
+            ORDER BY j.created_at,j.id LIMIT ?""",
+                    (now, now, limit),
+                )
+            ]
+        # This publication lease is independent of the task execution lease.
         for row in rows:
+            token = uuid4().hex
             conn.execute(
-                "UPDATE durable_jobs SET next_publish_at=? WHERE job_id=?",
-                (now + 30, row["job_id"]),
+                """UPDATE durable_jobs SET next_publish_at=?,publish_token=?,publish_lease_until=?,
+                publish_attempts=publish_attempts+1 WHERE job_id=?""",
+                (now + lease_seconds, token, now + lease_seconds, row["job_id"]),
             )
+            row.update(publish_token=token, publish_lease_until=now + lease_seconds)
+    return rows
+
+
+def complete_publication(db_path, row, *, now=None, error=None):
+    from database import get_connection
+
+    now = time.time() if now is None else now
+    with get_connection(db_path) as conn:
+        if error:
+            # A callback failure can mean the broker accepted the record. Keep
+            # the finite lease so recovery is delayed but never lost.
+            return conn.execute(
+                """UPDATE durable_jobs SET last_publish_error=?
+                WHERE job_id=? AND publish_token=? AND publish_lease_until>?""",
+                (type(error).__name__, row["job_id"], row["publish_token"], now),
+            ).rowcount
+        return conn.execute(
+            """UPDATE durable_jobs SET published_at=?,publish_token=NULL,
+            publish_lease_until=0,last_publish_error=NULL
+            WHERE job_id=? AND publish_token=? AND publish_lease_until>?""",
+            (now, row["job_id"], row["publish_token"], now),
+        ).rowcount
+
+
+def renew_publication(db_path, row, *, now=None, lease_seconds=30):
+    from database import get_connection
+
+    now = time.time() if now is None else now
+    with get_connection(db_path) as conn:
+        return bool(
+            conn.execute(
+                """UPDATE durable_jobs SET publish_lease_until=?
+            WHERE job_id=? AND publish_token=? AND publish_lease_until>?""",
+                (now + lease_seconds, row["job_id"], row["publish_token"], now),
+            ).rowcount
+        )
+
+
+def publish_pending(db_path, publisher, *, now: float | None = None) -> int:
+    rows = claim_publish_batch(db_path, now=now)
+    failure = None
+    sent = 0
     for row in rows:
-        publisher(row["job_id"], row["kind"])
+        if not renew_publication(db_path, row, now=now):
+            continue
+        try:
+            publisher(row["job_id"], row["kind"])
+            complete_publication(db_path, row, now=now)
+            sent += 1
+        except Exception as error:
+            complete_publication(db_path, row, now=now, error=error)
+            failure = failure or error
+    if failure:
+        raise failure
     # Until a worker claims the row, periodic redelivery also recovers broker loss.
-    return len(rows)
+    return sent

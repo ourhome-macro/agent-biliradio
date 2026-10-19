@@ -1,0 +1,19 @@
+[Unit]
+Description=Recommend Radio SQL Outbox to Kafka relay
+Requires=recommend-radio-migrate.service
+After=recommend-radio-migrate.service network-online.target
+
+[Service]
+Type=simple
+User=radio
+Group=radio
+WorkingDirectory=/opt/agent-memory-runtime/recommend-radio/backend
+EnvironmentFile=/etc/recommend-radio/radio.env
+Environment=AMEM_ENABLED=false
+ExecStart=/opt/agent-memory-runtime/.venv/bin/python -m kafka_relay
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=45
+
+[Install]
+WantedBy=multi-user.target

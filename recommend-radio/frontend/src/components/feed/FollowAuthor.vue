@@ -53,7 +53,7 @@ async function load() {
   controller?.abort(); controller = new AbortController()
   const version = ++generation, item = props.item
   creator.value = null; error.value = ''
-  if (!item || item.suppressed) return
+  if (!item || item.suppressed || item.track?.source === 'ugc') return
   try {
     const value = await followingApi.creator(item.contentId, controller.signal)
     if (!alive || version !== generation) return

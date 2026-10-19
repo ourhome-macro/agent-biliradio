@@ -24,6 +24,7 @@ export interface Playback {
   manifestUrl: string | null; expiresAt: number; sourceComplete: boolean; generation: number
   leaseExpiresAt?: number; manifestExpiresAt?: number | null; refreshAfterSeconds?: number
   generationKey?: string; durationSeconds?: number; seekable?: boolean
+  persistenceStatus?: string
   errorType?: string
 }
 export interface FeedEvent {

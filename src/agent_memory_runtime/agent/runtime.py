@@ -4,6 +4,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import suppress
+from copy import copy
 from dataclasses import dataclass, replace
 from time import perf_counter
 from typing import Any
@@ -53,7 +54,6 @@ from agent_memory_runtime.agent.observability import (
     AgentRunEvaluator,
     RuntimeMetrics,
 )
-from agent_memory_runtime.agent.sampling import SamplingExecutor, SamplingState
 from agent_memory_runtime.agent.output import (
     StructuredOutputResult,
     output_contract_instruction,
@@ -65,6 +65,7 @@ from agent_memory_runtime.agent.policy import (
     AgentPolicyResolver,
     StaticAgentPolicyResolver,
 )
+from agent_memory_runtime.agent.sampling import SamplingExecutor, SamplingState
 from agent_memory_runtime.agent.stores import AgentStateStore, InMemoryAgentStateStore
 from agent_memory_runtime.agent.tool_runtime import (
     ReliableToolRuntime,
@@ -234,47 +235,17 @@ class BusinessAgentRuntime:
         reviewer_id: str,
         succeeded: bool,
         output: dict[str, Any] | None = None,
+        reason: str = "Outcome verified",
+        resolution_id: str | None = None,
     ) -> ToolCallRecord:
-        if not reviewer_id.strip():
-            raise ValueError("reviewer_id cannot be empty")
-        record = await asyncio.to_thread(self.state_store.get_tool_call, call_id)
-        if record is None:
-            raise AgentRunNotFoundError(f"tool call {call_id!r} was not found")
-        if record.tenant_id != tenant_id:
-            raise AgentIdentityError("tool call does not belong to the requested tenant")
-        if record.status is not ToolCallStatus.RECONCILIATION_REQUIRED:
-            raise AgentRunConflictError("tool call is not awaiting reconciliation")
-        reconciled_output = dict(output or {})
-        _ensure_json_object(reconciled_output, label="reconciliation output")
-        status = ToolCallStatus.SUCCEEDED if succeeded else ToolCallStatus.FAILED
+        from agent_memory_runtime.agent.recovery import reconcile_tool_record
+
+        _ensure_json_object(dict(output or {}), label="reconciliation output")
         updated = await asyncio.to_thread(
-            self.state_store.update_tool_call,
-            replace(
-                record,
-                status=status,
-                output=reconciled_output if succeeded else {},
-                error_type=None if succeeded else "ReconciledFailure",
-                error_hash=(
-                    None
-                    if succeeded
-                    else secure_hash(
-                        {
-                            "type": "ReconciledFailure",
-                            "reviewer_id": reviewer_id,
-                            "call_id": call_id,
-                        }
-                    )
-                ),
-            ),
-            expected_version=record.version,
+            reconcile_tool_record, self.state_store, call_id,
+            tenant_id=tenant_id, reviewer_id=reviewer_id, succeeded=succeeded,
+            output=output, reason=reason, resolution_id=resolution_id,
         )
-        run = await self._load_run(record.run_id)
-        if run.status is RunStatus.NEEDS_RECONCILIATION:
-            await asyncio.to_thread(
-                self.state_store.update_run,
-                replace(run, status=RunStatus.PENDING),
-                expected_version=run.version,
-            )
         self.metrics.increment("tools.reconciled")
         return updated
 
@@ -377,6 +348,11 @@ class BusinessAgentRuntime:
             return
 
         run = claimed
+        from agent_memory_runtime.agent.stores.leases import LeaseBoundAgentStateStore
+
+        execution = copy(self)
+        execution.state_store = LeaseBoundAgentStateStore(self.state_store, run.lease_token)
+        execution.tool_runtime = ReliableToolRuntime(state_store=execution.state_store)
         factory = _EventFactory(run)
         token = cancellation_token or CancellationToken()
         self._active_tokens[run.run_id] = token
@@ -396,7 +372,7 @@ class BusinessAgentRuntime:
         try:
             policy = self.policy_resolver.resolve(run.request)
             async with asyncio.timeout(policy.run_timeout_seconds):
-                async for event in self._drive(
+                async for event in execution._drive(
                     run,
                     factory=factory,
                     token=token,
@@ -445,10 +421,14 @@ class BusinessAgentRuntime:
                 self.metrics.increment("runs.failed")
             yield await self._publish(event)
         except AgentLeaseLostError:
-            self.metrics.increment("runs.lease_lost")
-            yield await self._publish(
-                factory.create("run.lease_lost", {"retryable": True})
-            )
+            latest = await self._load_run(run.run_id)
+            if latest.status is RunStatus.CANCELLED:
+                yield await self._publish(factory.create("run.cancelled", {}))
+            else:
+                self.metrics.increment("runs.lease_lost")
+                yield await self._publish(
+                    factory.create("run.lease_lost", {"retryable": True})
+                )
         except Exception as error:
             event = factory.create(
                 "run.failed",
@@ -1265,7 +1245,8 @@ class BusinessAgentRuntime:
         error_type: str,
     ) -> None:
         current = await self._load_run(run_id)
-        if current.is_terminal or current.status is not RunStatus.RUNNING:
+        if (current.is_terminal or current.status is not RunStatus.RUNNING
+                or current.lease_token != factory.execution_id):
             return
         try:
             await asyncio.to_thread(
@@ -1288,7 +1269,8 @@ class BusinessAgentRuntime:
         factory: _EventFactory,
     ) -> None:
         current = await self._load_run(run_id)
-        if current.is_terminal or current.status is not RunStatus.RUNNING:
+        if (current.is_terminal or current.status is not RunStatus.RUNNING
+                or current.lease_token != factory.execution_id):
             return
         try:
             await asyncio.to_thread(
@@ -1311,7 +1293,8 @@ class BusinessAgentRuntime:
         factory: _EventFactory,
     ) -> None:
         current = await self._load_run(run_id)
-        if current.is_terminal or current.status is not RunStatus.RUNNING:
+        if (current.is_terminal or current.status is not RunStatus.RUNNING
+                or current.lease_token != factory.execution_id):
             return
         try:
             await asyncio.to_thread(
@@ -1342,13 +1325,17 @@ class BusinessAgentRuntime:
                 return
             except TimeoutError:
                 pass
-            renewed = await asyncio.to_thread(
-                self.state_store.renew_run,
-                run.run_id,
-                worker_id=self.worker_id,
-                lease_token=run.lease_token or "",
-                lease_seconds=self.lease_seconds,
-            )
+            try:
+                renewed = await asyncio.to_thread(
+                    self.state_store.renew_run,
+                    run.run_id,
+                    worker_id=self.worker_id,
+                    lease_token=run.lease_token or "",
+                    lease_seconds=self.lease_seconds,
+                )
+            except Exception:
+                token.cancel("agent run ownership could not be renewed")
+                return
             if not renewed:
                 latest = await self.state_store_get_run(run.run_id)
                 if latest is not None and latest.status is RunStatus.CANCELLED:

@@ -7,7 +7,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:5000").rstrip("/")
-SSE_GATEWAY_URL = os.getenv("SSE_GATEWAY_URL", "http://sse-gateway:8080").rstrip("/")
+SSE_GATEWAY_URL = os.getenv("SSE_GATEWAY_URL", BACKEND_URL).rstrip("/")
 STATIC_ROOT = Path(os.getenv("STATIC_ROOT", "/app/dist")).resolve()
 HOP_BY_HOP_HEADERS = {
     "connection",
@@ -19,6 +19,14 @@ HOP_BY_HOP_HEADERS = {
     "transfer-encoding",
     "upgrade",
 }
+
+
+class PreserveRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, target):
+        return None
+
+
+UPSTREAM = urllib.request.build_opener(PreserveRedirects)
 
 
 class StaticProxyHandler(SimpleHTTPRequestHandler):
@@ -73,6 +81,8 @@ class StaticProxyHandler(SimpleHTTPRequestHandler):
             for key, value in self.headers.items()
             if key.lower() not in HOP_BY_HOP_HEADERS and key.lower() != "host"
         }
+        headers.setdefault("X-Forwarded-Host", self.headers.get("Host", ""))
+        headers.setdefault("X-Forwarded-Proto", "http")
         request = urllib.request.Request(
             self._upstream_url(),
             data=body,
@@ -80,7 +90,7 @@ class StaticProxyHandler(SimpleHTTPRequestHandler):
             method=self.command,
         )
         try:
-            with urllib.request.urlopen(request, timeout=120) as response:
+            with UPSTREAM.open(request, timeout=120) as response:
                 if self._is_sse_response(response.headers):
                     self._copy_stream(response.status, response.headers, response)
                 elif self._is_audio_stream_path():
@@ -107,7 +117,7 @@ class StaticProxyHandler(SimpleHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         return (path.startswith("/api/tracks/") and path.endswith("/stream")) or path.startswith(
             "/api/stream/"
-        )
+        ) or (path.startswith("/api/media/streams/") and not path.endswith(".m3u8"))
 
     @staticmethod
     def _is_sse_response(headers) -> bool:
@@ -120,6 +130,8 @@ class StaticProxyHandler(SimpleHTTPRequestHandler):
                 continue
             self.send_header(key, value)
         self.send_header("X-Accel-Buffering", "no")
+        self.send_header("Connection", "close")
+        self.close_connection = True
         self.end_headers()
         if self.command == "HEAD":
             return
@@ -160,6 +172,8 @@ class StaticProxyHandler(SimpleHTTPRequestHandler):
             if key.lower() in HOP_BY_HOP_HEADERS:
                 continue
             self.send_header(key, value)
+        if not headers.get("Content-Length"):
+            self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)

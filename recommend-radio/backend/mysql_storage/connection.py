@@ -67,16 +67,16 @@ def ensure_mysql(url, *, migrate):
                     sa.text("SELECT version_num FROM alembic_version")
                 ).scalar()
         if current != HEAD:
-            if current is not None:
-                raise RuntimeError(
-                    "Existing MySQL revisions require an explicit versioned upgrade; "
-                    "baseline installation cannot stamp an older database"
-                )
             if not migrate:
                 raise RuntimeError("MySQL business schema is not current; run mysql migration")
-            from .schema import install_schema
-
-            install_schema(engine)
+            if current is not None:
+                raise RuntimeError(
+                    "Existing MySQL schema requires the explicit administrator migration command; "
+                    "application startup cannot apply DDL"
+                )
+            else:
+                from .schema import install_schema
+                install_schema(engine)
             tables_for.cache_clear()
         _initialized.add((url, HEAD))
 

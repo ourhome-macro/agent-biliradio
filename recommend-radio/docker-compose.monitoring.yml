@@ -1,2 +1,6 @@
-# Host services export OTLP/Prometheus to an external collector when configured.
-services: {}
+# Standalone core + monitoring entrypoint.
+name: radio-kafka
+include:
+  - path:
+      - docker-compose.full.yml
+      - docker-compose.full.monitoring.yml

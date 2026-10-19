@@ -18,6 +18,15 @@ def cleanup(repo, config, storage, *, apply=False, minimum_age=86400):
         jobs = [dict(r) for r in conn.execute("SELECT * FROM media_import_jobs")]
         assets = [dict(r) for r in conn.execute("SELECT * FROM media_assets")]
     live_paths = {job["work_key"] for job in jobs if job["status"] in {"queued", "running"}}
+    with get_connection(repo.db_path) as conn:
+        live_paths.update(
+            row[0]
+            for row in conn.execute(
+                "SELECT j.work_key FROM media_playbacks p JOIN media_import_jobs j "
+                "ON j.import_id=p.import_id WHERE p.active=1 AND p.expires_at>?",
+                (now,),
+            )
+        )
     live_assets = {job["asset_id"] for job in jobs if job["status"] in {"queued", "running"}}
     known_assets = {asset["asset_id"] for asset in assets}
     referenced = set()
@@ -46,7 +55,13 @@ def cleanup(repo, config, storage, *, apply=False, minimum_age=86400):
                         AND status IN ('queued','running')""",
                         (job["work_key"],),
                     ).fetchone()
-                    if not live:
+                    watching = conn.execute(
+                        "SELECT 1 FROM media_playbacks p JOIN media_import_jobs j "
+                        "ON j.import_id=p.import_id "
+                        "WHERE j.work_key=? AND p.active=1 AND p.expires_at>?",
+                        (job["work_key"], now),
+                    ).fetchone()
+                    if not live and not watching:
                         try:
                             shutil.rmtree(path)
                         except (FileNotFoundError, PermissionError):

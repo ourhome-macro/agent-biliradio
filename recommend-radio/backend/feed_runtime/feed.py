@@ -283,7 +283,7 @@ class FeedService:
                             "profileVersion": session["profile_version"],
                             "policyVersion": session["policy_version"],
                             "decision": decisions.get(row["track_id"], {}),
-                            "source": "bili",
+                            "source": json.loads(row["metadata_json"]).get("source", "unknown"),
                             "feedPolicy": row.get("_feed_policy", {}),
                         }
                         conn.execute(
@@ -335,6 +335,9 @@ class FeedService:
                 (user_id,),
             ).fetchone()
             bitmap_id = int(bitmap_user[0]) if bitmap_user else None
+            from resource_policy import ResourcePolicy
+            authorized = ResourcePolicy(self.repo.db_path).resolve_many(
+                user_id, [item["content_id"] for item in issued], action="feed", conn=conn)
             for item in issued:
                 # Cache never authorizes visibility or reproduces a user's current dislike.
                 row = conn.execute(
@@ -350,6 +353,7 @@ class FeedService:
                 ).fetchone()
                 suppressed = (
                     not row
+                    or item["content_id"] not in authorized
                     or row["status"] != "admitted"
                     or (row["scope"] != "public" and row["owner_id"] != user_id)
                     or row["reaction"] == "dislike"
@@ -369,7 +373,8 @@ class FeedService:
                 }
                 if not suppressed:
                     metadata = self.cache.get(
-                        f"content:{row['content_id']}",
+                        f"content:{row['content_id']}:acl:{row['permission_version']}:"
+                        + ("public" if row["scope"] == "public" else user_id),
                         lambda r=row: json.loads(r["metadata_json"]),
                         version=row["version"],
                         shared=row["scope"] == "public",
@@ -475,6 +480,8 @@ class FeedService:
                         raise APIError.conflict("Event identity changed")
                     accepted.append(event_id)
                     continue
+                from resource_policy import ResourcePolicy
+                ResourcePolicy(self.repo.db_path).require(user_id, item["content_id"], action="feed", conn=conn)
                 event_type = payload["type"]
                 if event_type == "impression":
                     ratio = event_number(payload, "visibleRatio")
@@ -559,7 +566,7 @@ class FeedService:
 
                 project_event(conn, user_id=user_id, item=dict(item), payload=payload, now=now)
                 # Only grounded positive evidence enters the existing memory outbox.
-                if event_type in {"play_started", "complete"}:
+                if event_type in {"play_started", "complete"} and json.loads(item["metadata_json"]).get("source") == "bili":
                     from durable_jobs import enqueue_behavior
 
                     enqueue_behavior(
