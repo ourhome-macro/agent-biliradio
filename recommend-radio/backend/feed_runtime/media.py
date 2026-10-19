@@ -4,6 +4,7 @@ import json
 import re
 import time
 from pathlib import Path
+from urllib.parse import quote
 from uuid import uuid4
 
 from database import begin_write, get_connection
@@ -31,9 +32,13 @@ class MediaService:
         if not request_key or len(request_key) > 180:
             raise APIError.validation_error("A bounded Idempotency-Key is required")
         content = self.repo.content(content_id, user_id)
+        from resource_policy import ResourcePolicy
+
+        policy = ResourcePolicy(self.repo.db_path)
+        policy.require(user_id, content_id, action="play")
         with get_connection(self.repo.db_path) as conn:
             previous = conn.execute(
-                """SELECT p.*,a.content_id FROM media_playbacks p
+                """SELECT p.*,a.content_id AS asset_content_id FROM media_playbacks p
                 JOIN media_assets a ON a.asset_id=p.asset_id
                 WHERE p.user_id=? AND p.request_key=?""",
                 (user_id, request_key),
@@ -54,6 +59,10 @@ class MediaService:
         if linked:
             asset_id = linked["asset_id"]
         else:
+            if metadata.get("source") != "bili":
+                raise APIError.validation_error(
+                    "Non-Bilibili content requires stored platform media"
+                )
             track = Track.from_dict(metadata)
             if not track.cid:
                 source = self.source_factory(
@@ -73,6 +82,7 @@ class MediaService:
             begin_write(conn, namespace="playback-command", key=encode([user_id, request_key]))
             begin_write(conn, namespace="media-asset", key=asset_id)
             begin_write(conn, namespace="content", key=content_id)
+            policy.require(user_id, content_id, action="play", conn=conn)
             # Recheck visibility under the writer lock before issuing a playback.
             current_content = self.repo.authorize(
                 conn.execute(
@@ -90,7 +100,8 @@ class MediaService:
                 raise APIError.conflict(
                     "Media identity changed while resolving source; retry playback"
                 )
-            current_metadata["cid"] = metadata.get("cid")
+            if current_metadata.get("source") == "bili":
+                current_metadata["cid"] = metadata.get("cid")
             metadata = current_metadata
             previous = conn.execute(
                 "SELECT * FROM media_playbacks WHERE user_id=? AND request_key=?",
@@ -205,21 +216,47 @@ class MediaService:
         with get_connection(self.repo.db_path) as conn:
             row = conn.execute(
                 """SELECT p.*,a.status AS asset_status,a.version AS asset_version,
-                a.manifest_json,a.content_id,c.scope,c.owner_id,c.status AS content_status
+                a.manifest_json,c.content_id AS authorized_content_id,
+                c.scope,c.owner_id,c.status AS content_status
                 FROM media_playbacks p JOIN media_assets a ON a.asset_id=p.asset_id
                 JOIN feed_content c ON c.content_id=COALESCE(p.content_id,a.content_id)
                 WHERE p.playback_id=? AND p.user_id=?""",
                 (playback_id, user_id),
             ).fetchone()
+            if row:
+                from resource_policy import ResourcePolicy
+
+                ResourcePolicy(self.repo.db_path).require(
+                    user_id, row["authorized_content_id"], action="play", conn=conn
+                )
         if not row:
             raise APIError.not_found("Playback not found")
         if row["scope"] != "public" and row["owner_id"] != user_id:
             raise APIError.not_found("Playback not found")
-        if row["content_status"] != "admitted" or row["asset_status"] == "retired":
+        if row["content_status"] != "admitted" or row["asset_status"] in {"retired", "unsupported"}:
             raise APIError.not_found("Content is unavailable")
         if require_active and (not row["active"] or row["expires_at"] <= time.time()):
             raise APIError(ErrorCode.CONFLICT, "Playback has expired", 410)
-        return dict(row)
+        result = dict(row)
+        result["content_id"] = row["authorized_content_id"]
+        return result
+
+    def _generation(self, row, manifest=None, job=None):
+        if row["asset_status"] == "ready":
+            manifest = (
+                manifest if manifest is not None else json.loads(row["manifest_json"] or "{}")
+            )
+            source = manifest.get("sourceGeneration") or f"stored:{row['asset_version']}"
+        else:
+            job = job or self.repo.import_job(row["import_id"])
+            source_file = self.workdir(job) / "source.json"
+            metadata = (
+                json.loads(source_file.read_text(encoding="utf-8")) if source_file.is_file() else {}
+            )
+            source = (
+                metadata.get("sourceGeneration") or f"{job['import_id']}:{job['fetch_attempts']}"
+            )
+        return f"{row['asset_id']}:{source}"
 
     def descriptor(self, playback_id, user_id):
         row = self._playback(playback_id, user_id)
@@ -227,7 +264,9 @@ class MediaService:
         if row["asset_status"] != "ready":
             mode, status, complete = "cold", "preparing", False
             job = self.repo.import_job(row["import_id"])
-            if job["status"] in {"failed", "cancelled"}:
+            if job["status"] == "cancelled" or (
+                job["status"] == "failed" and not job["complete_source"]
+            ):
                 status = job["status"]
             else:
                 playlist = self.workdir(job) / "index.m3u8"
@@ -247,24 +286,21 @@ class MediaService:
                     "WHERE playback_id=? AND playable_at IS NULL",
                     (now, playback_id),
                 )
-        generation_key = (
-            f"stored:{row['asset_version']}"
-            if mode == "stored"
-            else f"{job['import_id']}:{job['fetch_attempts']}"
-        )
+        stored_manifest = json.loads(row["manifest_json"] or "{}")
+        # Moving the same HLS bytes to object storage is not a new source.
+        generation_key = self._generation(row, stored_manifest, job if mode == "cold" else None)
         with get_connection(self.repo.db_path) as conn:
             metadata = conn.execute(
                 "SELECT metadata_json FROM feed_content WHERE content_id=?", (row["content_id"],)
             ).fetchone()
         duration = float(
-            json.loads(row["manifest_json"]).get("duration")
-            or json.loads(metadata[0]).get("duration")
-            or 0
+            stored_manifest.get("duration") or json.loads(metadata[0]).get("duration") or 0
         )
         return {
             "playbackId": playback_id,
             "assetId": row["asset_id"],
             "mode": mode,
+            "persistenceStatus": "completed" if mode == "stored" else job["status"],
             "status": status,
             "manifestUrl": f"/api/media/streams/{playback_id}/index.m3u8?v={generation_key}"
             if status in {"streaming", "ready"}
@@ -292,7 +328,8 @@ class MediaService:
         with get_connection(self.repo.db_path) as conn:
             begin_write(conn, namespace="media-asset", key=playback["asset_id"])
             state = conn.execute(
-                "SELECT a.status AS asset_status,j.status AS import_status FROM media_playbacks p "
+                "SELECT a.status AS asset_status,j.status AS import_status,j.complete_source "
+                "FROM media_playbacks p "
                 "JOIN media_assets a ON a.asset_id=p.asset_id "
                 "LEFT JOIN media_import_jobs j ON j.import_id=p.import_id "
                 "WHERE p.playback_id=?",
@@ -303,7 +340,11 @@ class MediaService:
                 or state["asset_status"] == "retired"
                 or (
                     state["asset_status"] != "ready"
-                    and state["import_status"] in {"cancelled", "failed"}
+                    and (
+                        state["import_status"] == "cancelled"
+                        or state["import_status"] == "failed"
+                        and not state["complete_source"]
+                    )
                 )
             ):
                 raise APIError(ErrorCode.CONFLICT, "Playback import is no longer active", 410)
@@ -334,10 +375,14 @@ class MediaService:
             raise RuntimeError("InvalidMediaWorkPath")
         return path
 
-    def stream_file(self, playback_id, user_id, filename):
+    def stream_file(self, playback_id, user_id, filename, *, expected_generation=None):
         if not FILE_NAME.fullmatch(filename):
             raise APIError.not_found("Media file not found")
         row = self._playback(playback_id, user_id)
+        job = self.repo.import_job(row["import_id"]) if row["asset_status"] != "ready" else None
+        generation = self._generation(row, job=job)
+        if expected_generation is not None and expected_generation != generation:
+            raise APIError(ErrorCode.CONFLICT, "Media source generation changed", 409)
         if row["asset_status"] == "ready":
             manifest = json.loads(row["manifest_json"])
             if filename == "index.m3u8":
@@ -364,8 +409,9 @@ class MediaService:
             return {
                 "redirect": self.storage.presign(entry["key"], version_id=entry.get("versionId"))
             }
-        job = self.repo.import_job(row["import_id"])
-        if job["status"] not in {"queued", "running"}:
+        if job["status"] not in {"queued", "running"} and not (
+            job["status"] == "failed" and job["complete_source"]
+        ):
             raise APIError(ErrorCode.CONFLICT, "Cold media is interrupted", 409)
         directory = self.workdir(job)
         if filename == "index.m3u8":
@@ -380,6 +426,11 @@ class MediaService:
                     and (not FILE_NAME.fullmatch(line) or not (directory / line).is_file())
                 ):
                     raise APIError(ErrorCode.CONFLICT, "Media is preparing", 425)
+            # Pin every relative fragment to these bytes. A new upstream fetch
+            # must never be appended into the previous generation's buffers.
+            suffix = "?v=" + quote(generation, safe="")
+            text = text.replace('URI="init.mp4"', f'URI="init.mp4{suffix}"')
+            text = re.sub(r"(?m)^(seg_[0-9]{6}\.m4s)$", lambda m: m[1] + suffix, text)
             return {"text": text, "mime": "application/vnd.apple.mpegurl"}
         playlist = (
             (directory / "index.m3u8").read_text(encoding="utf-8")

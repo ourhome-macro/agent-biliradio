@@ -127,6 +127,8 @@ def register_feed(app, *, music_services_factory):
         from database import get_connection
 
         runtime = services()
+        from resource_policy import ResourcePolicy
+        ResourcePolicy(runtime.repo.db_path).require(runtime.user_id, content_id, action="play")
         runtime.repo.content(content_id, runtime.user_id)
         with get_connection(runtime.repo.db_path) as conn:
             row = conn.execute(

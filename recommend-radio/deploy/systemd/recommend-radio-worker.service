@@ -1,5 +1,5 @@
 [Unit]
-Description=Recommend Radio worker and durable outbox
+Description=Recommend Radio Kafka jobs and events
 Requires=recommend-radio-migrate.service
 After=recommend-radio-migrate.service network-online.target
 
@@ -11,9 +11,10 @@ WorkingDirectory=/opt/agent-memory-runtime/recommend-radio/backend
 EnvironmentFile=/etc/recommend-radio/radio.env
 Environment=AMEM_TRANSPORT=embedded
 Environment=AUTO_DREAM_ENABLED=true
-Environment=RADIO_OUTBOX_EMBEDDED=true
+Environment=RADIO_OUTBOX_EMBEDDED=false
+Environment=JOB_TRANSPORT=kafka
 Environment=SSE_GATEWAY_INTERNAL_URL=
-ExecStart=/opt/agent-memory-runtime/.venv/bin/python -m celery -A task_app worker --pool=prefork --concurrency=4 --hostname=radio@%%h -Q radio.jobs.v2,radio.events.v2
+ExecStart=/opt/agent-memory-runtime/.venv/bin/python -m kafka_worker --lanes jobs,events --concurrency 2
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=300

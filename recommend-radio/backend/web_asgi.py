@@ -78,7 +78,8 @@ class RadioASGI:
             return JSONResponse({"error":"media file not found"},status_code=404)
         try:
             runtime=await asyncio.to_thread(FeedServices,user_id=str(user["id"]),db_path=self.db_path)
-            result=await asyncio.to_thread(runtime.media.stream_file,parts[4],str(user["id"]),parts[5])
+            result=await asyncio.to_thread(runtime.media.stream_file,parts[4],str(user["id"]),parts[5],
+                expected_generation=request.query_params.get("v"))
         except APIError as error:
             return JSONResponse({"error":error.message},status_code=error.status_code)
         except Exception as error:

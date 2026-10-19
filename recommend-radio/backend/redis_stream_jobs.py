@@ -138,10 +138,10 @@ class RedisJobWorker:
 
             def dispatcher(job):
                 return (
-                    dispatch_isolated(job)
+                    dispatch_isolated(job, db_path=bus.db_path)
                     if job["kind"]
                     in {"media_import", "dialogue", "discovery", "evolution", "discovery_watch"}
-                    else dispatch(job)
+                    else dispatch(job, db_path=bus.db_path)
                 )
 
         self.dispatch = dispatcher

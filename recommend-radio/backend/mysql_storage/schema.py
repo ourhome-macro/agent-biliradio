@@ -19,13 +19,18 @@ KEY_LENGTHS = {
 }
 
 
-def canonical_schema():
+def canonical_schema(revision=None):
     """Build the canonical business schema in an isolated SQLite migration fixture."""
     from schema_migrations import ensure_database
 
     with tempfile.TemporaryDirectory(prefix="radio-schema-") as directory:
         path = Path(directory) / "schema.sqlite3"
-        ensure_database(path, migrate=True)
+        if revision is None:
+            ensure_database(path, migrate=True)
+        else:
+            from alembic import command
+            from schema_migrations import config
+            command.upgrade(config(path), revision)
         with closing(sqlite3.connect(path)) as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
@@ -171,8 +176,8 @@ def metadata_from_catalog(catalog):
     return metadata
 
 
-def install_schema(engine):
-    catalog = canonical_schema()
+def install_schema(engine, *, revision=None):
+    catalog = canonical_schema(revision)
     metadata = metadata_from_catalog(catalog)
     # MySQL DDL commits implicitly: serialize only this operator-driven migration.
     with engine.connect() as connection:

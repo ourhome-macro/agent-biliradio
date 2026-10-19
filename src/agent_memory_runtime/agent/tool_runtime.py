@@ -10,6 +10,7 @@ from typing import Any
 
 from agent_memory_runtime.agent.cancellation import CancellationToken
 from agent_memory_runtime.agent.errors import (
+    AgentLeaseLostError,
     AgentPolicyError,
     AgentReconciliationRequired,
 )
@@ -154,6 +155,8 @@ class ReliableToolRuntime:
                         error_hash=None,
                     )
                 )
+            except AgentLeaseLostError:
+                raise
             except AgentReconciliationRequired:
                 # A synchronous tool may still be running after timeout/cancel.
                 # Even idempotent calls must not overlap an unobserved attempt.

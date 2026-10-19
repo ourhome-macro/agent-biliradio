@@ -26,6 +26,9 @@ const router = createRouter({
       name: 'search',
       component: () => import('@/views/SearchView.vue'),
     },
+    { path: '/content-search', name: 'content-search', component: () => import('@/views/ContentSearchView.vue') },
+    { path: '/studio', name: 'content-studio', component: () => import('@/views/ContentStudioView.vue') },
+    { path: '/content/:id', name: 'content-detail', component: () => import('@/views/ContentDetailView.vue') },
     {
       path: '/feed',
       name: 'video-feed',

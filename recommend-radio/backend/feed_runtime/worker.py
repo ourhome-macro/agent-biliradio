@@ -119,6 +119,7 @@ class MediaWorker:
                     "duration": manifest["duration"],
                     "bytes": manifest["bytes"],
                     "format": "hls-fmp4-v1",
+                    "sourceGeneration": manifest["sourceGeneration"],
                 }
                 self.repo.complete_import(job, persisted)
                 trace.set_attribute("media.outcome", "ready")
@@ -194,7 +195,13 @@ class MediaWorker:
                 if resolved.duration <= 0 or resolved.duration > self.config.max_duration:
                     raise ValueError("MediaDurationExceeded")
                 (directory / "source.json").write_text(
-                    encode({"duration": resolved.duration}), encoding="utf-8"
+                    encode(
+                        {
+                            "duration": resolved.duration,
+                            "sourceGeneration": f"{job['import_id']}:{sequence}",
+                        }
+                    ),
+                    encoding="utf-8",
                 )
                 self.repo.progress(job, self.config, stage="fetching")
                 headers = "".join(
@@ -353,7 +360,8 @@ class MediaWorker:
         return duration
 
     def _package(self, job, directory):
-        expected = json.loads((directory / "source.json").read_text(encoding="utf-8"))["duration"]
+        source_metadata = json.loads((directory / "source.json").read_text(encoding="utf-8"))
+        expected = source_metadata["duration"]
         duration = self._verify(directory, expected, timeout=self._remaining(job, 60))
         for filename, options in (
             ("audio.m4a", ["-map", "0:a:0", "-c:a", "copy", "-movflags", "+faststart"]),
@@ -409,6 +417,8 @@ class MediaWorker:
         if size > self.config.max_bytes:
             raise ValueError("MediaAssetQuotaExceeded")
         return {
+            "sourceGeneration": source_metadata.get("sourceGeneration")
+            or f"{job['import_id']}:{job['fetch_attempts']}",
             "names": names,
             "digest": hashlib.sha256(
                 encode({name: file_hash(directory / name) for name in names}).encode()

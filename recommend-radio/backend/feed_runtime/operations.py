@@ -291,13 +291,62 @@ class FeedOperations:
                 return {"contentId": content_id, "status": status, "affectedContents": 0}
             if content["status"] not in {"admitted", "retired"}:
                 raise APIError.conflict("Unsupported content lifecycle transition")
+            post = conn.execute(
+                "SELECT * FROM ugc_posts WHERE content_id=?", (content_id,)
+            ).fetchone()
+            if post:
+                if post["status"] != "published":
+                    raise APIError.conflict("Only published posts can be moderated or restored")
+                conn.execute(
+                    "UPDATE feed_content SET status=?,version=version+1,"
+                    "permission_version=permission_version+1 WHERE content_id=?",
+                    (status, content_id),
+                )
+                conn.execute(
+                    "UPDATE ugc_posts SET version=version+1,"
+                    "permission_version=permission_version+1,"
+                    "updated_at=? WHERE content_id=?",
+                    (now, content_id),
+                )
+                conn.execute(
+                    "UPDATE media_playbacks SET active=0,expires_at=? WHERE content_id=?",
+                    (now, content_id),
+                )
+                from domain_outbox import enqueue_event
+
+                enqueue_event(
+                    conn,
+                    aggregate_type="content",
+                    aggregate_id=content_id,
+                    event_type="content.visibility_changed",
+                    owner_id=post["author_id"],
+                    visibility_revision=post["permission_version"] + 1,
+                    payload={
+                        "contentId": content_id,
+                        "version": post["version"] + 1,
+                        "permissionVersion": post["permission_version"] + 1,
+                        "catalogStatus": status,
+                    },
+                )
+                self.audit(
+                    conn,
+                    actor_id,
+                    "ugc_content_status",
+                    content_id,
+                    reason,
+                    {"status": status, "affectedContents": 1},
+                )
+                return {"contentId": content_id, "status": status, "affectedContents": 1}
             link = (locked_asset,) if locked_asset else None
             identifiers = [content_id]
             if link:
                 identifiers = [
                     r[0]
                     for r in conn.execute(
-                        "SELECT content_id FROM content_media_links WHERE asset_id=?", (link[0],)
+                        "SELECT l.content_id FROM content_media_links l "
+                        "LEFT JOIN ugc_posts p ON p.content_id=l.content_id "
+                        "WHERE l.asset_id=? AND p.content_id IS NULL",
+                        (link[0],),
                     )
                 ]
                 asset = conn.execute(
@@ -339,8 +388,30 @@ class FeedOperations:
                     )
             for identifier in identifiers:
                 conn.execute(
-                    "UPDATE feed_content SET status=?,version=version+1 WHERE content_id=?",
+                    "UPDATE feed_content SET status=?,version=version+1,"
+                    "permission_version=permission_version+1 WHERE content_id=?",
                     (status, identifier),
+                )
+                from domain_outbox import enqueue_event
+
+                revised = conn.execute(
+                    "SELECT version,permission_version,owner_id FROM feed_content "
+                    "WHERE content_id=?",
+                    (identifier,),
+                ).fetchone()
+                enqueue_event(
+                    conn,
+                    aggregate_type="content",
+                    aggregate_id=identifier,
+                    event_type="content.visibility_changed",
+                    owner_id=revised["owner_id"] or "",
+                    visibility_revision=revised["permission_version"],
+                    payload={
+                        "contentId": identifier,
+                        "version": revised["version"],
+                        "permissionVersion": revised["permission_version"],
+                        "catalogStatus": status,
+                    },
                 )
             self.audit(
                 conn,

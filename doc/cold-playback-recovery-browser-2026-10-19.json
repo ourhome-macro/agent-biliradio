@@ -1,0 +1,9 @@
+{
+  "ambiguous_creation_retries_same_idempotency_key": true,
+  "cold_to_stored_keeps_media_source_and_position": true,
+  "transient_heartbeat_keeps_playback": true,
+  "signature_refresh_preserves_pause_buffers_and_position": true,
+  "seek_after_signature_expiry_uses_renewed_segment_urls": true,
+  "real_source_replacement_restores_position_without_autoplay": true,
+  "single_watch_identity_and_no_javascript_errors": true
+}

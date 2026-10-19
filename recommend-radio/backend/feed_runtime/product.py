@@ -17,6 +17,8 @@ class FeedProductService:
         self.repo, self.config = repo, config
 
     def detail(self, user_id, content_id):
+        from resource_policy import ResourcePolicy
+        resource = ResourcePolicy(self.repo.db_path).require(user_id, content_id)
         with get_connection(self.repo.db_path) as conn:
             row = conn.execute(
                 """SELECT c.*,a.status AS asset_status,a.manifest_json,
@@ -33,6 +35,7 @@ class FeedProductService:
             self.repo.authorize(row, user_id)
         manifest = json.loads(row["manifest_json"] or "{}")
         return {
+            **resource,
             "contentId": content_id,
             "track": json.loads(row["metadata_json"]),
             "assetStatus": row["asset_status"] or "empty",
@@ -44,13 +47,15 @@ class FeedProductService:
                 "version": row["counter_version"] or 0,
             },
             "projectionPending": (row["projected_version"] or 0) < (row["relation_version"] or 0),
-            "sharePath": f"/#/feed?content={content_id}" if row["scope"] == "public" else None,
+            "sharePath": resource["sharePath"],
             "coverUrl": f"/api/content/{content_id}/cover"
             if manifest.get("files", {}).get("cover.jpg")
             else None,
         }
 
     def open(self, user_id, content_id):
+        from resource_policy import ResourcePolicy
+        ResourcePolicy(self.repo.db_path).require(user_id, content_id, action="play")
         detail = self.detail(user_id, content_id)
         if detail["assetStatus"] in {"unsupported", "retired"}:
             raise APIError.not_found("Content is unavailable")
@@ -111,7 +116,7 @@ class FeedProductService:
     def history(self, user_id, *, cursor=None, limit=20):
         if type(limit) is not int or not 1 <= limit <= 50:
             raise APIError.validation_error("limit must be between 1 and 50")
-        before, last_id = float("inf"), ""
+        before, last_id = 1e30, ""
         if cursor:
             try:
                 if not isinstance(cursor, str) or len(cursor) > 2048:
@@ -144,6 +149,8 @@ class FeedProductService:
                 ORDER BY h.watched_at DESC,h.content_id ASC LIMIT ?""",
                 (user_id, user_id, before, before, last_id, limit + 1),
             ).fetchall()
+        from resource_policy import ResourcePolicy
+        visible = ResourcePolicy(self.repo.db_path).resolve_many(user_id, [row["content_id"] for row in rows], action="play")
         entries = [
             {
                 "contentId": row["content_id"],
@@ -152,7 +159,7 @@ class FeedProductService:
                 "watchedAt": row["watched_at"],
                 "completed": bool(row["completed"]),
             }
-            for row in rows[:limit]
+            for row in rows[:limit] if row["content_id"] in visible
         ]
         next_cursor = None
         if len(rows) > limit:

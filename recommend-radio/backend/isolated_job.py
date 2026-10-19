@@ -96,8 +96,16 @@ class ProcessTree:
             self.handle = None
 
 
-def dispatch_isolated(job):
+def dispatch_isolated(job, *, cancel_event=None, db_path=None):
     limit = 3660 if job["kind"] == "media_import" else 270
+    child_environment = os.environ.copy()
+    if db_path is not None:
+        from database import mysql_target
+
+        target = mysql_target(db_path)
+        child_environment["DATABASE_URL"] = target or ""
+        child_environment["BUSINESS_DATABASE_URL"] = target or ""
+        child_environment["BUSINESS_SQLITE_PATH"] = "" if target else str(Path(db_path).resolve())
     process = subprocess.Popen(
         [sys.executable, "-m", "isolated_job"],
         cwd=Path(__file__).resolve().parent,
@@ -106,13 +114,33 @@ def dispatch_isolated(job):
         stderr=subprocess.DEVNULL,
         text=True,
         encoding="utf-8",
+        env=child_environment,
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
         start_new_session=os.name != "nt",
     )
     tree = ProcessTree(process)
     try:
         try:
-            output, _ = process.communicate(json.dumps(job, ensure_ascii=False), timeout=limit)
+            import time
+
+            deadline = time.monotonic() + limit
+            supplied = False
+            while True:
+                if cancel_event is not None and cancel_event.is_set():
+                    tree.terminate()
+                    process.communicate(timeout=10)
+                    raise RuntimeError("DurableJobOwnershipLost")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(process.args, limit)
+                try:
+                    output, _ = process.communicate(
+                        json.dumps(job, ensure_ascii=False) if not supplied else None,
+                        timeout=min(1, remaining),
+                    )
+                    break
+                except subprocess.TimeoutExpired:
+                    supplied = True
         except subprocess.TimeoutExpired:
             tree.terminate()
             process.communicate(timeout=10)

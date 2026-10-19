@@ -218,6 +218,10 @@ register_feed(app, music_services_factory=_music_services_for_request)
 from following.api import register_following
 
 register_following(app)
+from ugc.api import register_ugc
+register_ugc(app)
+from content_search.api import register_content_search
+register_content_search(app)
 
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 _IMAGE_REDIRECT_STATUSES = {301, 302, 303, 307, 308}

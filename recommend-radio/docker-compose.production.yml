@@ -1,9 +1,6 @@
-services:
-  rabbitmq:
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
-      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
-    ports:
-      - "127.0.0.1:${RABBITMQ_AMQP_PORT:-5672}:5672"
-      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+# Standalone production entrypoint (do not overlay this include wrapper).
+name: radio-kafka
+include:
+  - path:
+      - docker-compose.full.yml
+      - docker-compose.full.production.yml

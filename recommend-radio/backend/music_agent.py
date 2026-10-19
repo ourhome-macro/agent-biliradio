@@ -7,11 +7,12 @@ import contextvars
 import hashlib
 import inspect
 import json
-from functools import wraps
 from dataclasses import dataclass
+from functools import wraps
 from typing import Callable
-from pathlib import Path
 from uuid import uuid4
+
+from job_errors import JobPermanentFailure, JobReconciliationRequired
 
 from agent_memory_runtime.agent.models import AgentRequest, ModelResponse, ModelToolCall
 from agent_memory_runtime.agent.policy import AgentPolicy, StaticAgentPolicyResolver
@@ -21,7 +22,6 @@ from agent_memory_runtime.memory.stores import SQLiteStoreBundle
 from agent_memory_runtime.runtime import AgentMemoryRuntime
 from agent_memory_runtime.telemetry import span
 from agent_memory_runtime.tools.registry import ToolRegistry
-from job_errors import JobPermanentFailure, JobReconciliationRequired
 
 current_job_id = contextvars.ContextVar("music_job_id", default=None)
 _depth = contextvars.ContextVar("music_agent_depth", default=0)
@@ -83,7 +83,9 @@ def execute_operation(service, name, payload, *, action=None, stages=None):
 
 
 async def _execute(service, name, payload, request_id, job_id, action, *, stages=None):
-    bundle = SQLiteStoreBundle(Path(service.db_path).with_name("agent-runs.sqlite3"))
+    from agent_job_recovery import agent_state_path
+
+    bundle = SQLiteStoreBundle(agent_state_path(service.db_path))
     store = bundle.agent_state_store
     is_workflow = stages is not None
     stages = tuple(stages or (OperationStage(name, lambda _: action()),))

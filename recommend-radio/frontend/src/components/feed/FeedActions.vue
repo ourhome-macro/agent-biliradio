@@ -3,8 +3,9 @@
     <template v-if="item && !item.suppressed">
       <button :disabled="busy" :class="{ selected: item.reaction === 'like' }" @click="react(item, item.reaction === 'like' ? 'neutral' : 'like')">喜欢 {{ item.counts?.likes || 0 }}</button>
       <button :disabled="busy" @click="dislike">不感兴趣</button>
-      <button @click="showPlaylists">加入歌单</button>
-      <button @click="showDetail">详情 / 分享</button>
+      <button v-if="item.track?.bvid && item.track?.source !== 'ugc'" @click="showPlaylists">加入歌单</button>
+      <RouterLink v-if="item.track?.source === 'ugc'" :to="`/content/${item.contentId}`">详情 / 分享</RouterLink>
+      <button v-else @click="showDetail">详情 / 分享</button>
     </template>
     <span v-if="undo" class="undo" role="status">已减少此类推荐 <button :disabled="busy" @click="restore">撤销</button></span>
     <span v-if="message" role="status">{{ message }}</span>
@@ -29,6 +30,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import type { FeedItem, Reaction } from '@/api/feed'
 import { feedProductApi, type ContentDetail } from '@/api/feedProduct'
 import { addPlaylistItemsRemote, fetchPlaylists } from '@/api/client'
@@ -145,7 +147,7 @@ onBeforeUnmount(() => { alive = false; ++pollVersion; ++panelVersion })
 </script>
 
 <style scoped>
-.feed-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:13px; }
+.feed-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:13px; }.feed-actions>a { color:inherit; padding:7px 10px; border:1px solid var(--color-border); border-radius:8px; text-decoration:none; }
 button { border:1px solid var(--color-border); border-radius:8px; padding:7px 10px; background:var(--color-bg-sidebar); color:inherit; cursor:pointer; }button:disabled { opacity:.5; }.selected { color:var(--color-accent); border-color:currentColor; }.undo { display:flex; align-items:center; gap:6px; }
 dialog { width:min(480px,calc(100vw - 48px)); max-height:75vh; overflow:auto; border:1px solid var(--color-border); border-radius:14px; background:var(--color-bg-app); color:var(--color-text-primary); padding:20px; }dialog::backdrop { background:#0009; }header { display:flex; align-items:center; justify-content:space-between; }.list-button { display:block; width:100%; text-align:left; margin-top:10px; }.description { white-space:pre-wrap; line-height:1.6; }label,input { display:block; width:100%; margin-top:10px; }input { box-sizing:border-box; padding:8px; }
 </style>

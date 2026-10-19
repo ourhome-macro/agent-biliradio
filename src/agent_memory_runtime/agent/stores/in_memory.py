@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from threading import RLock
@@ -21,6 +23,7 @@ from agent_memory_runtime.agent.models import (
     ToolCallRecord,
     utc_now_iso,
 )
+from agent_memory_runtime.agent.stores.leases import assert_execution_lease
 
 
 class InMemoryAgentStateStore:
@@ -33,6 +36,19 @@ class InMemoryAgentStateStore:
         self._approvals: dict[str, ApprovalRecord] = {}
         self._approval_by_call: dict[str, str] = {}
         self._lock = RLock()
+
+    @contextmanager
+    def transaction(self):
+        with self._lock:
+            snapshot = {
+                key: deepcopy(value) for key, value in vars(self).items() if isinstance(value, dict)
+            }
+            try:
+                yield
+            except BaseException:
+                for key, value in snapshot.items():
+                    setattr(self, key, value)
+                raise
 
     def create_run(self, run: AgentRun) -> AgentRun:
         with self._lock:
@@ -168,8 +184,10 @@ class InMemoryAgentStateStore:
         checkpoint: AgentCheckpoint,
         *,
         expected_version: int | None,
+        lease_token: str | None = None,
     ) -> AgentCheckpoint:
         with self._lock:
+            assert_execution_lease(self._runs.get(checkpoint.run_id), lease_token)
             if checkpoint.run_id not in self._runs:
                 raise AgentRunNotFoundError(f"run {checkpoint.run_id!r} was not found")
             current = self._checkpoints.get(checkpoint.run_id)
@@ -190,8 +208,9 @@ class InMemoryAgentStateStore:
             checkpoint = self._checkpoints.get(run_id)
             return None if checkpoint is None else _clone_checkpoint(checkpoint)
 
-    def save_turn(self, turn: AgentTurn) -> AgentTurn:
+    def save_turn(self, turn: AgentTurn, *, lease_token: str | None = None) -> AgentTurn:
         with self._lock:
+            assert_execution_lease(self._runs.get(turn.run_id), lease_token)
             if turn.run_id not in self._runs:
                 raise AgentRunNotFoundError(f"run {turn.run_id!r} was not found")
             for existing in self._turns.values():
@@ -216,8 +235,11 @@ class InMemoryAgentStateStore:
                 )
             ]
 
-    def create_tool_call(self, record: ToolCallRecord) -> ToolCallRecord:
+    def create_tool_call(
+        self, record: ToolCallRecord, *, lease_token: str | None = None
+    ) -> ToolCallRecord:
         with self._lock:
+            assert_execution_lease(self._runs.get(record.run_id), lease_token)
             run = self._runs.get(record.run_id)
             if run is None:
                 raise AgentRunNotFoundError(f"run {record.run_id!r} was not found")
@@ -226,9 +248,7 @@ class InMemoryAgentStateStore:
             existing = self._tool_calls.get(record.call_id)
             if existing is not None:
                 if _tool_identity(existing) != _tool_identity(record):
-                    raise AgentRunConflictError(
-                        "tool call_id is already bound to a different call"
-                    )
+                    raise AgentRunConflictError("tool call_id is already bound to a different call")
                 return _clone_tool_call(existing)
             self._tool_calls[record.call_id] = _clone_tool_call(record)
             return _clone_tool_call(record)
@@ -243,8 +263,10 @@ class InMemoryAgentStateStore:
         record: ToolCallRecord,
         *,
         expected_version: int,
+        lease_token: str | None = None,
     ) -> ToolCallRecord:
         with self._lock:
+            assert_execution_lease(self._runs.get(record.run_id), lease_token)
             current = self._tool_calls.get(record.call_id)
             if current is None:
                 raise AgentRunNotFoundError(f"tool call {record.call_id!r} was not found")
@@ -266,17 +288,15 @@ class InMemoryAgentStateStore:
                 )
             ]
 
-    def create_approval(self, approval: ApprovalRecord) -> ApprovalRecord:
+    def create_approval(
+        self, approval: ApprovalRecord, *, lease_token: str | None = None
+    ) -> ApprovalRecord:
         with self._lock:
+            assert_execution_lease(self._runs.get(approval.run_id), lease_token)
             call = self._tool_calls.get(approval.call_id)
             if call is None:
-                raise AgentRunNotFoundError(
-                    f"tool call {approval.call_id!r} was not found"
-                )
-            if (
-                call.run_id != approval.run_id
-                or call.tenant_id != approval.tenant_id
-            ):
+                raise AgentRunNotFoundError(f"tool call {approval.call_id!r} was not found")
+            if call.run_id != approval.run_id or call.tenant_id != approval.tenant_id:
                 raise AgentIdentityError("approval identity does not match its tool call")
             existing_id = self._approval_by_call.get(approval.call_id)
             if existing_id is not None:

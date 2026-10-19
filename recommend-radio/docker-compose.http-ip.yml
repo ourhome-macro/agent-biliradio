@@ -1,2 +1,6 @@
-# API binding is configured on the host Web process.
-services: {}
+# Standalone loopback/firewall deployment entrypoint.
+name: radio-kafka
+include:
+  - path:
+      - docker-compose.full.yml
+      - docker-compose.full.http-ip.yml

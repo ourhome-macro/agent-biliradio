@@ -28,7 +28,7 @@ def resolve_data_dir(
 
 
 DATA_DIR = resolve_data_dir()
-DEFAULT_DB_PATH = DATA_DIR / "bili_radio.sqlite3"
+DEFAULT_DB_PATH = Path(os.getenv("BUSINESS_SQLITE_PATH") or DATA_DIR / "bili_radio.sqlite3")
 SQLITE_BUSY_TIMEOUT_MS = 30_000
 LEGACY_OWNER_USER_ID = "legacy-owner"
 

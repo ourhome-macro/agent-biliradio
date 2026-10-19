@@ -9,6 +9,8 @@ dist/
 build/
 *.egg-info/
 tests/
+!/tests/
+!/tests/test_context_constraint_selection.py
 !recommend-radio/backend/tests/
 !recommend-radio/backend/tests/*.py
 examples/

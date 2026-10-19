@@ -575,6 +575,7 @@ class ToolCallRecord:
     output: dict[str, Any] = field(default_factory=dict)
     error_type: str | None = None
     error_hash: str | None = None
+    reconciliation: dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=utc_now_iso)
     updated_at: str = field(default_factory=utc_now_iso)
 
@@ -593,6 +594,7 @@ class ToolCallRecord:
             "output": dict(self.output),
             "error_type": self.error_type,
             "error_hash": self.error_hash,
+            "reconciliation": dict(self.reconciliation),
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -613,6 +615,7 @@ class ToolCallRecord:
             output=_dict(value.get("output")),
             error_type=_optional_str(value.get("error_type")),
             error_hash=_optional_str(value.get("error_hash")),
+            reconciliation=_dict(value.get("reconciliation")),
             created_at=str(value.get("created_at") or utc_now_iso()),
             updated_at=str(value.get("updated_at") or utc_now_iso()),
         )

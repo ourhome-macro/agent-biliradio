@@ -84,6 +84,7 @@ let signedRefreshTimer: number | undefined, signedRefreshAt = 0
 let releaseOwner: (() => void) | null = null, watchMs = 0, lastTime = 0, lastMediaTime = 0, started = false
 let observer: ResizeObserver | null = null, exposureSince = 0, exposureSent = false
 let attachedKey = '', attachedMode = '', signedUntil = 0, recoveryCount = 0, recovering = false
+let wantsPlay = true, sourceRefresh: Promise<void> | null = null
 let bufferingSince = 0, bufferingMs = 0, beginAt = 0, startupMs = 0, pendingNext = false, mounted = false
 const element = () => Array.isArray(video.value) ? video.value[0] : video.value
 const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms))
@@ -102,7 +103,7 @@ function stop(reason = 'interrupt') {
   generation += 1; window.clearTimeout(heartbeat); window.clearInterval(exposureTimer); window.clearTimeout(signedRefreshTimer)
   playing.value = false; lastTime = 0; adapter.stop()
   if (playback) { const id = playback.playbackId; void events.flush().finally(() => feedApi.release(id).catch(() => undefined)); playback = null }
-  releaseOwner?.(); releaseOwner = null; currentItem = undefined; recovering = false
+  releaseOwner?.(); releaseOwner = null; currentItem = undefined; recovering = false; wantsPlay = false; sourceRefresh = null
 }
 function checkExposure() {
   if (exposureSent || !currentItem || document.hidden || !scroller.value) { exposureSince = 0; return }
@@ -122,43 +123,60 @@ async function bounded<T>(request: (signal: AbortSignal) => Promise<T>): Promise
   try { return await request(controller.signal) } finally { clearTimeout(timer) }
 }
 function generationKey(value: Playback) { return value.generationKey || `${value.assetId}:${value.generation}` }
+function scheduleSignedRefresh(value: Playback, version: number) {
+  signedUntil = value.manifestExpiresAt || 0
+  signedRefreshAt = signedUntil ? Math.min(signedUntil - .25,
+    Date.now() / 1000 + (value.refreshAfterSeconds || Math.max(.25, signedUntil - Date.now() / 1000 - 60))) : 0
+  window.clearTimeout(signedRefreshTimer)
+  if (!signedRefreshAt) return
+  const key = attachedKey
+  signedRefreshTimer = window.setTimeout(async () => {
+    if (version !== generation || !playback || key !== attachedKey) return
+    try {
+      const fresh = await bounded(signal => feedApi.playback(playback!.playbackId, signal))
+      if (version !== generation || key !== attachedKey) return
+      playback = fresh
+      await descriptorChanged(fresh, version, true)
+    } catch { if (version === generation) void recover(version, 'manifest_refresh_failed') }
+  }, Math.max(250, (signedRefreshAt - Date.now() / 1000) * 1000))
+}
 async function attach(value: Playback, version: number, preserve = true) {
   if (!value.manifestUrl) throw new Error('unavailable')
   await nextTick()
   const target = element()
   if (!target || version !== generation) return
   const oldPosition = preserve ? target.currentTime || position.value : 0
-  const autoplay = !preserve || !started || !target.paused
   attachedKey = generationKey(value); attachedMode = value.mode
-  signedUntil = value.manifestExpiresAt || 0
-  signedRefreshAt = signedUntil ? Date.now() / 1000 + (value.refreshAfterSeconds || Math.max(1, signedUntil - Date.now() / 1000 - 60)) : 0
-  window.clearTimeout(signedRefreshTimer)
-  if (signedRefreshAt) {
-    const key = attachedKey
-    signedRefreshTimer = window.setTimeout(async () => {
-      if (version !== generation || !playback || key !== attachedKey) return
-      try {
-        const fresh = await bounded(signal => feedApi.playback(playback!.playbackId, signal))
-        if (version !== generation || key !== attachedKey) return
-        playback = fresh; await attach(fresh, version)
-      } catch { if (version === generation) void recover(version, 'manifest_refresh_failed') }
-    }, Math.max(250, (signedRefreshAt - Date.now() / 1000) * 1000))
-  }
-  canSeek.value = value.sourceComplete
+  scheduleSignedRefresh(value, version)
+  canSeek.value = value.seekable ?? value.sourceComplete
   duration.value = value.durationSeconds || duration.value
   if (!releaseOwner) releaseOwner = claimVideoPlayback(() => stop(), () => usePlayerStore().pause())
   adapter.attach(target, value.manifestUrl,
     code => { if (version === generation) void recover(version, code) },
-    () => { if (version === generation) { status.value = '点击播放开始观看'; emit('autoplay_blocked') } },
-    { position: oldPosition, autoplay })
+    () => { if (version === generation) { wantsPlay = false; status.value = '点击播放开始观看'; emit('autoplay_blocked') } },
+    { position: oldPosition, shouldAutoplay: () => wantsPlay })
   status.value = value.mode === 'cold' ? '首次观看，正在保存' : '已准备好'
 }
-async function descriptorChanged(value: Playback, version: number) {
+async function descriptorChanged(value: Playback, version: number, forceRefresh = false) {
   if (!['ready', 'streaming', 'preparing'].includes(value.status)) throw new Error(value.errorType || value.status)
   if (value.status === 'preparing') return
   const refreshed = signedUntil > 0 && Date.now() / 1000 >= signedRefreshAt
-  if (generationKey(value) !== attachedKey || value.mode !== attachedMode || refreshed) await attach(value, version, !!attachedKey)
-  canSeek.value = value.sourceComplete
+  if (generationKey(value) !== attachedKey) await attach(value, version, !!attachedKey)
+  else if (value.mode !== attachedMode || refreshed || forceRefresh) {
+    if (!sourceRefresh) {
+      const work = (async () => {
+        const sourceKey = generationKey(value)
+        const renewed = value.manifestUrl && await adapter.refreshManifest(value.manifestUrl)
+        if (version !== generation || attachedKey !== sourceKey) return
+        if (!renewed) await attach(value, version)
+        else { attachedMode = value.mode; scheduleSignedRefresh(value, version) }
+      })()
+      sourceRefresh = work
+      try { await work } finally { if (sourceRefresh === work) sourceRefresh = null }
+    } else await sourceRefresh
+  }
+  canSeek.value = value.seekable ?? value.sourceComplete
+  if (value.persistenceStatus === 'failed') status.value = '视频可继续观看，保存稍后重试'
 }
 async function beat(version: number) {
   if (!playback || version !== generation) return
@@ -182,7 +200,9 @@ async function beat(version: number) {
 }
 async function recover(version: number, code: string) {
   if (recovering || version !== generation || !playback) return
-  recovering = true; onPause(); emit('playback_error', { errorType: code })
+  // A failed renewal can occur while buffered video is still playing.
+  // Let media events account for actual stalls rather than inventing a pause.
+  recovering = true; emit('playback_error', { errorType: code })
   try {
     while (recoveryCount < 3 && version === generation && playback) {
       recoveryCount += 1; status.value = `正在恢复播放（${recoveryCount}/3）…`
@@ -192,7 +212,15 @@ async function recover(version: number, code: string) {
         const value = await bounded(signal => feedApi.heartbeat(playback!.playbackId, signal))
         if (version !== generation) return
         playback = value
-        if (['ready', 'streaming'].includes(value.status)) { await attach(value, version); return }
+        if (['ready', 'streaming'].includes(value.status)) {
+          if (code === 'networkError' && generationKey(value) === attachedKey && value.manifestUrl
+              && await adapter.refreshManifest(value.manifestUrl)) {
+            if (version !== generation || generationKey(value) !== attachedKey) return
+            adapter.resumeLoading(); scheduleSignedRefresh(value, version)
+            if (wantsPlay) void element()?.play().catch(() => undefined)
+          } else await attach(value, version)
+          return
+        }
       } catch { /* Retry within the playback lease. */ }
     }
     if (version === generation) { status.value = '播放失败，请重试'; stop() }
@@ -203,13 +231,24 @@ async function begin(item?: FeedItem) {
   position.value = 0; duration.value = 0; canSeek.value = false
   exposureSince = 0; exposureSent = false; heartbeatFailures = 0; recoveryCount = 0; bufferingMs = 0; bufferingSince = 0
   if (!item || item.suppressed || document.hidden) return
+  wantsPlay = true
   currentItem = item; beginAt = performance.now(); startupMs = 0
   const version = generation
   exposureTimer = window.setInterval(checkExposure, 100)
   status.value = '正在准备视频…'
   const key = crypto.randomUUID()
   try {
-    const value = await bounded(signal => feedApi.start(item.contentId, key, signal))
+    let value: Playback | undefined
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (version !== generation) return
+      try { value = await bounded(signal => feedApi.start(item.contentId, key, signal)); break }
+      catch (error) {
+        const code = (error as { status?: number }).status || 0
+        if (attempt === 2 || code > 0 && code < 500 && code !== 429) throw error
+        await delay(400 * 2 ** attempt)
+      }
+    }
+    if (!value) throw new Error('playback_creation_failed')
     if (version !== generation) { void feedApi.release(value.playbackId).catch(() => undefined); return }
     playback = value
     heartbeat = window.setTimeout(() => void beat(version), 5000)
@@ -275,7 +314,7 @@ async function onEnded(event?: Event) {
     else { emit('interrupt'); await recover(version, 'incomplete_end') }
   } catch { if (version === generation) await recover(version, 'end_verification_failed') }
 }
-function togglePlay() { if (!playback) { void begin(active.value); return }; const target = element(); if (!target) return; if (target.paused) void target.play().catch(() => { status.value = '点击播放开始观看' }); else target.pause() }
+function togglePlay() { if (!playback) { void begin(active.value); return }; const target = element(); if (!target) return; wantsPlay = !wantsPlay; if (wantsPlay) void target.play().catch(() => { wantsPlay = false; status.value = '点击播放开始观看' }); else target.pause() }
 function onScroll() {
   checkExposure()
   if (!scroller.value) return
