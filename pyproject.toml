@@ -28,8 +28,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.0",
-  "ruff>=0.6",
+  "pytest==9.0.3",
+  "ruff==0.15.14",
+  "pre-commit==4.7.0",
   "tiktoken>=0.8",
   "fakeredis[lua]>=2.32,<3",
   "playwright>=1.50,<2",
@@ -54,6 +55,9 @@ packages = ["src/agent_memory_runtime"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+  "integration: requires isolated MySQL/Kafka/Elasticsearch or legacy RabbitMQ services",
+]
 
 [tool.ruff]
 line-length = 100

@@ -5,7 +5,6 @@ import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -15,11 +14,11 @@ from confluent_kafka import TopicPartition
 from database import get_connection, init_db
 from domain_consumer import DomainEventConsumer
 from domain_outbox import claim_events, complete_publish, enqueue_event
-from dotenv import dotenv_values
 from durable_jobs import claim_publish_batch, complete_publication, enqueue, publish_pending
 from kafka_transport import KafkaJobBus, KafkaSettings
 from kafka_worker import JobProcessor, KafkaConsumerLoop
 from mysql_storage.connection import engine_for
+from integration_settings import acceptance_settings
 
 
 class SecretURL(str):
@@ -29,12 +28,11 @@ class SecretURL(str):
 
 @pytest.fixture
 def case(tmp_path, monkeypatch, request):
-    private = Path(__file__).resolve().parents[2] / "server-data/kafka-acceptance/private.env"
-    if not private.is_file():
+    values = acceptance_settings()
+    if values is None:
         pytest.skip("Isolated Docker Kafka/MySQL credentials are not configured")
-    values = dotenv_values(private)
     root = sa.engine.make_url(values["KAFKA_TEST_ROOT_DATABASE_URL"])
-    assert root.port not in {3306, 3307}, (
+    assert root.host in {"127.0.0.1", "localhost"} and root.port not in {None, 3306, 3307}, (
         "Never run transport acceptance against existing host MySQL"
     )
     database = "radio_kafka_" + uuid4().hex[:14]

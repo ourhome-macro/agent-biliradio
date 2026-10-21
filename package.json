@@ -1,0 +1,10 @@
+{
+  "name": "agent-memory-runtime-quality",
+  "private": true,
+  "scripts": {
+    "lint:docs": "python scripts/quality.py docs"
+  },
+  "devDependencies": {
+    "markdownlint-cli2": "0.23.3"
+  }
+}

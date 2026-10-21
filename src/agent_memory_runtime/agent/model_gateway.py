@@ -13,8 +13,12 @@ from agent_memory_runtime.agent.models import (
     ModelToolCall,
     ToolDefinition,
 )
+from agent_memory_runtime.agent.sampling import (
+    begin_provider_sampling,
+    finish_provider_sampling,
+    sample_sync,
+)
 from agent_memory_runtime.config import LLMConfig
-from agent_memory_runtime.agent.sampling import sample_sync, begin_provider_sampling, finish_provider_sampling
 from agent_memory_runtime.exceptions import (
     LLMConfigurationError,
     LLMRequestError,
@@ -164,7 +168,9 @@ class OpenAICompatibleModelGateway:
         tools: tuple[ToolDefinition, ...],
         metadata: dict[str, Any] | None = None,
     ) -> AsyncIterator[ModelGatewayStreamEvent]:
-        sampling_record = begin_provider_sampling(model=self.config.model, provider=self.config.provider)
+        sampling_record = begin_provider_sampling(
+            model=self.config.model, provider=self.config.provider
+        )
         try:
             chunks = await asyncio.to_thread(
                 self._start_stream_sync,
@@ -191,7 +197,9 @@ class OpenAICompatibleModelGateway:
                 if usage is not None:
                     input_tokens = _optional_int(getattr(usage, "prompt_tokens", None))
                     output_tokens = _optional_int(getattr(usage, "completion_tokens", None))
-                    sampling_record.update(usageKnown=True, inputTokens=input_tokens, outputTokens=output_tokens)
+                    sampling_record.update(
+                        usageKnown=True, inputTokens=input_tokens, outputTokens=output_tokens
+                    )
                 choices = getattr(chunk, "choices", None) or ()
                 if not choices:
                     continue
@@ -244,8 +252,11 @@ class OpenAICompatibleModelGateway:
     ) -> ModelResponse:
         request = self._request(messages, tools, stream=False, metadata=metadata)
         try:
-            response = sample_sync(lambda:self._get_client().chat.completions.create(**request),
-                                   model=self.config.model,provider=self.config.provider)
+            response = sample_sync(
+                lambda: self._get_client().chat.completions.create(**request),
+                model=self.config.model,
+                provider=self.config.provider,
+            )
         except (LLMConfigurationError, ModelProtocolError):
             raise
         except Exception as error:

@@ -102,6 +102,7 @@ Golden Set 位于 `recommend-radio/evals/golden/`：
 | `capability.v1.jsonl` | 工具、路由、RequestSpec、Memory 检索、实体和 DAG 规划 | 15 cases |
 | `business.v1.jsonl` | 固定候选集排序、硬约束、作品去重和多样性 | 3 cases |
 | `adversarial.v1.jsonl` | 无效 BVID、跨 tenant 检索、敏感信息、注入、否定和 DAG 环 | 9 cases |
+| `regression.v1.jsonl` | 语言否定、舞台范围、场景续接、跨用户 / 会话、实际跳过反馈、讨论路由与嵌套脱敏 | 13 cases |
 
 所有 case 必须包含稳定唯一 `id`、`layer`、`task`、`input` 和 `expected`。首版只使用程序化 judge；在 LLM Judge 与人工标签完成一致性校准前，不将主观模型分数纳入发布门禁。
 
@@ -117,7 +118,9 @@ Golden Set 位于 `recommend-radio/evals/golden/`：
 - intra-list diversity >= 0.45；
 - forbidden violation rate = 0。
 
-基线快照位于 `recommend-radio/evals/baseline.v1.json`。当前 27/27 cases 通过，冻结业务集 NDCG@8 为 0.9447，Hit@8 为 1.0，intra-list diversity 为 0.6786。
+基线快照位于 `recommend-radio/evals/baseline.v1.json`，保留最初 27 个案例的历史结果。2026-10-21 扩充至 40/40，NDCG@8=0.9684，Hit@8=1.0，intra-list diversity=0.7959。样本组成和评测夹具已变化，不能将这组数与历史基线直接比较为质量提升。
+
+排序用例直接调用真实 RecommendationPolicy，仅 embedding 使用固定向量。候选来源、反馈、数量放在 input；expected 只判定结果，不能被排序器用来排除候选。排序样本使用小规模固定 slate，未覆盖完整线上供给和大列表随机探索。禁止项反馈丢失、预期标签反向过滤与 NaN 指标均有反例测试。详见 [扩充记录](../../doc/golden-expansion-2026-10-21.md)。
 
 ## 运行方式
 

@@ -67,6 +67,7 @@ def main() -> None:
     parser.add_argument("--since", default="")
     parser.add_argument("--output", default="")
     parser.add_argument("--fail-on-gate", action="store_true")
+    parser.add_argument("--quiet", action="store_true", help="Print summary; retain full JSON output")
     args = parser.parse_args()
 
     cases, golden_hash = _load_cases(Path(args.golden_dir))
@@ -83,7 +84,10 @@ def main() -> None:
         output = Path(args.output).resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(rendered + "\n", encoding="utf-8")
-    print(rendered)
+    print(
+        json.dumps({key: report[key] for key in ("caseCount", "passedCount", "failedCount", "gates")})
+        if args.quiet else rendered
+    )
     if args.fail_on_gate and not report["gates"]["passed"]:
         raise SystemExit(1)
 
@@ -179,13 +183,17 @@ def evaluate_gates(report: dict[str, Any], gates: dict[str, Any]) -> dict[str, A
     metrics = report.get("metrics") or {}
     for name, expected in (gates.get("minimum") or {}).items():
         actual = metrics.get(name)
-        if actual is None or float(actual) < float(expected):
+        if not math.isfinite(float(expected)):
+            raise ValueError("Gate thresholds must be finite numbers")
+        if actual is None or not math.isfinite(float(actual)) or float(actual) < float(expected):
             failures.append(
                 {"metric": name, "operator": ">=", "expected": expected, "actual": actual}
             )
     for name, expected in (gates.get("maximum") or {}).items():
         actual = metrics.get(name)
-        if actual is None or float(actual) > float(expected):
+        if not math.isfinite(float(expected)):
+            raise ValueError("Gate thresholds must be finite numbers")
+        if actual is None or not math.isfinite(float(actual)) or float(actual) > float(expected):
             failures.append(
                 {"metric": name, "operator": "<=", "expected": expected, "actual": actual}
             )
@@ -351,24 +359,15 @@ def _ranking_case(inputs: dict[str, Any], expected: dict[str, Any]) -> dict[str,
                 audio_embedding=[float(item) for item in value.get("audioEmbedding") or []],
             )
         )
-    forbidden = {str(item) for item in expected.get("forbiddenIds") or []}
-    limit = int(expected.get("limit") or 8)
-    class GoldenRankingPolicy(RecommendationPolicy):
-        # These fixtures isolate MMR/diversity, not music admission or exploration.
-        # Preserve their original contract and expected values after policy extraction.
-        def _is_hard_filtered(self, item, *_args):
-            return str(item.track.get('trackId')) in forbidden
-
-        def _select_epsilon_greedy(self, values, limit, *_args):
-            return values[:limit]
-
-        def _apply_diversity_limits(self, values, _same_uploader_limit, limit, **_kwargs):
-            return super()._apply_diversity_limits(values,
-                same_uploader_limit=int(inputs.get('sameUploaderLimit') or 2),
-                limit=limit, request_scoped_limit=None)
-
-    engine = RecommendationEngine(embedding_service=_GoldenEmbeddingService(query_vector),
-                                  policy=GoldenRankingPolicy('golden'))
+    # Serving receives only scenario inputs. Expected labels never select/filter candidates.
+    limit = int(inputs.get("limit") or 8)
+    profile.same_uploader_limit = int(inputs.get("sameUploaderLimit") or profile.same_uploader_limit)
+    legacy_profile = UserProfile(
+        **{name: set(values) for name, values in (inputs.get("legacyProfile") or {}).items()}
+    )
+    engine = RecommendationEngine(
+        embedding_service=_GoldenEmbeddingService(query_vector), policy=RecommendationPolicy("golden")
+    )
     _reranked, selected, diagnostics = engine.rank_and_select(
         candidates,
         request=RecommendationRequest(
@@ -379,9 +378,10 @@ def _ranking_case(inputs: dict[str, Any], expected: dict[str, Any]) -> dict[str,
             exclude_track_ids=set(),
             recent_context={},
         ),
-        legacy_profile=UserProfile(),
+        legacy_profile=legacy_profile,
     )
     selected_ids = [str(item.track.get("trackId") or "") for item in selected]
+    forbidden = {str(item) for item in expected.get("forbiddenIds") or []}
     relevance = {str(key): int(value) for key, value in (expected.get("relevance") or {}).items()}
     ndcg = _ndcg(selected_ids, relevance, limit)
     hit = float(any(relevance.get(item, 0) >= 2 for item in selected_ids))
@@ -496,7 +496,13 @@ def _load_cases(directory: Path) -> tuple[list[dict[str, Any]], str]:
             if not line.strip() or line.lstrip().startswith("#"):
                 continue
             value = json.loads(line)
-            if not isinstance(value, dict) or not {"id", "layer", "task"} <= value.keys():
+            if (
+                not isinstance(value, dict)
+                or not {"id", "layer", "task", "input", "expected"} <= value.keys()
+                or not isinstance(value["input"], dict)
+                or not isinstance(value["expected"], dict)
+                or value["layer"] not in {"capability", "business", "adversarial"}
+            ):
                 raise ValueError(f"invalid golden case at {path}:{line_number}")
             cases.append(value)
     if not cases:
@@ -504,6 +510,12 @@ def _load_cases(directory: Path) -> tuple[list[dict[str, Any]], str]:
     ids = [str(case["id"]) for case in cases]
     if len(ids) != len(set(ids)):
         raise ValueError("golden case IDs must be unique")
+    manifest_path = directory.parent / "manifest.v1.json"
+    if manifest_path.is_file():
+        manifest = _json_file(manifest_path)
+        required = set(manifest["requiredCaseIds"])
+        if not required or not required <= set(ids) or len(cases) < manifest["minimumCaseCount"]:
+            raise ValueError("Golden suite is incomplete: required cases are missing")
     return cases, digest.hexdigest()
 
 

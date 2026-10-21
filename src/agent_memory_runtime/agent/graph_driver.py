@@ -100,7 +100,9 @@ async def drive_graph(runtime, run, *, factory, token, policy):
                     event.type == "tool.completed" and event.data.get("status") != "succeeded"
                 ):
                     current.set_status(Status(StatusCode.ERROR))
-                    current.set_attribute("error.type", event.data.get("error_type") or "ToolFailure")
+                    current.set_attribute(
+                        "error.type", event.data.get("error_type") or "ToolFailure"
+                    )
                 get_stream_writer()(await runtime._publish(event))
         if progress.paused:
             interrupt({"run_id": run.run_id, "status": progress.run.status.value})

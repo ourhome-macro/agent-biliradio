@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import socket
 import subprocess
 import time
@@ -17,6 +18,9 @@ def redis_binary():
     configured = os.getenv("REDIS_SERVER_PATH")
     if configured:
         return Path(configured).resolve()
+    system_binary = shutil.which("redis-server")
+    if system_binary:
+        return Path(system_binary).resolve()
     candidates = list(ROOT.glob("Redis-*/redis-server.exe"))
     if not candidates:
         raise FileNotFoundError("Set REDIS_SERVER_PATH to the supplied native server")
