@@ -26,7 +26,7 @@
 
 ## 明确边界
 
-本机 Docker Desktop Linux engine 未运行，尚未执行这份 Actions workflow 的真实容器服务组合，不能宣称 main 集成层已经验收通过。远端 workflow 执行与 main 分支保护需在相关文件进入 GitHub 后确认；本轮没有 push 或修改远端规则。
+本机 Docker Desktop Linux engine 未运行，尚未执行这份 Actions workflow 的真实容器服务组合，不能宣称 main 集成层已经验收通过。已按后续授权推送并创建 PR；远端检查结果需在 GitHub 确认，未修改 main 分支保护规则。
 
 本轮清理了核心 lint 的现有格式问题；旧 Radio 的完整风格规则仍有存量债务。所有规则、命令和环境变量以 [质量门禁](quality.md) 为准。
 
@@ -34,4 +34,6 @@
 
 ## GitHub 投递
 
-用户已授权推送。投递分支为 `ci/unified-quality-gate`，从最新 `origin/main` 建立，通过 PR 审查后再合并；不直接推 main。提交包含 CI、质量工具、对应测试、Golden 数据和必要文档，保留原有 `doc/context.md` 未提交修改及无关历史验收产物。远端结果以该分支的 Actions / PR 检查为准，不预先标记通过。
+已将代码提交 `c226473` 推送到 `ci/unified-quality-gate`，分支基于最新 `origin/main`，并创建 [PR #7](https://github.com/ourhome-macro/agent-biliradio/pull/7)。未直接推 main。
+
+提交包含 CI、质量工具、对应测试、Golden 数据和必要文档；原有 `doc/context.md` 修改及无关历史验收产物留在本地。对提交后的干净检出另行验证：44 篇 Markdown 的篇幅 / 文件链接与核心 Ruff 通过，未依赖未提交文件。远端结果以 PR 的 Actions 检查为准，不预先标记通过。
