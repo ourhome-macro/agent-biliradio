@@ -48,7 +48,8 @@ class RecommendationEngine:
         eligible = []
         for item in candidates:
             if (
-                self.policy._is_hard_filtered(item, request.profile, legacy_profile)
+                not re.fullmatch(r"BV[0-9A-Za-z]{10}", str(item.track.get("bvid") or ""))
+                or self.policy._is_hard_filtered(item, request.profile, legacy_profile)
                 or item.track["trackId"] in legacy_profile.recently_recommended_track_ids
             ):
                 hard_rejected.append(item)

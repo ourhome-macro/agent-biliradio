@@ -661,17 +661,19 @@ class SQLiteTransactionManager:
         from alembic.config import Config
         from filelock import FileLock
 
-        with FileLock(str(self.path) + '.migration.lock', timeout=60):
+        with FileLock(str(self.path) + ".migration.lock", timeout=60):
             with closing(self._connect()) as check:
-                exists = check.execute("SELECT 1 FROM sqlite_master WHERE name='amem_alembic_version'").fetchone()
+                exists = check.execute(
+                    "SELECT 1 FROM sqlite_master WHERE name='amem_alembic_version'"
+                ).fetchone()
                 if exists:
-                    row = check.execute('SELECT version_num FROM amem_alembic_version').fetchone()
-                    if row and row[0] == 'amem_001':
+                    row = check.execute("SELECT version_num FROM amem_alembic_version").fetchone()
+                    if row and row[0] == "amem_001":
                         return LATEST_SCHEMA_VERSION
             config = Config()
-            config.set_main_option('script_location', str(Path(__file__).parent / 'migrations'))
-            config.attributes['manager'] = self
-            command.upgrade(config, 'head')
+            config.set_main_option("script_location", str(Path(__file__).parent / "migrations"))
+            config.attributes["manager"] = self
+            command.upgrade(config, "head")
         return LATEST_SCHEMA_VERSION
 
     def _migrate_legacy(self) -> int:

@@ -378,6 +378,7 @@ class FeedService:
                         lambda r=row: json.loads(r["metadata_json"]),
                         version=row["version"],
                         shared=row["scope"] == "public",
+                        content_id=row["content_id"],
                     )
                     manifest = json.loads(row["manifest_json"] or "{}")
                     relation = self.cache.reaction(

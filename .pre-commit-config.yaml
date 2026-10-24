@@ -1,0 +1,16 @@
+minimum_pre_commit_version: '4.0.0'
+repos:
+  - repo: local
+    hooks:
+      - id: quality-fast
+        name: Python lint, config syntax and documentation contracts
+        entry: python scripts/quality.py hook
+        language: python
+        language_version: python3
+        additional_dependencies: [ruff==0.15.14, PyYAML==6.0.3]
+        files: '\.(py|md|json|ya?ml|toml)$'
+        require_serial: true
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.23.3
+    hooks:
+      - id: markdownlint-cli2

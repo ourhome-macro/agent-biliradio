@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from database import DATA_DIR, DEFAULT_DB_PATH, database_identity, mysql_target
+from database import DATA_DIR, DEFAULT_DB_PATH, database_identity, get_connection, mysql_target
 
 from .cache import FeedCache
 from .config import FeedConfig
@@ -15,12 +15,46 @@ from .storage import MinIOStorage
 
 
 def resources(config: FeedConfig, db_path: str):
-    return _resources(config, database_identity(db_path)[:12])
+    return _resources(config, database_identity(db_path)[:12], str(db_path))
 
 
 @lru_cache(maxsize=8)
-def _resources(config: FeedConfig, namespace: str):
-    return FeedCache(config.redis_url, prefix=f"radio:feed:{namespace}"), MinIOStorage(config)
+def _resources(config: FeedConfig, namespace: str, db_path: str):
+    prefix = f"radio:feed:{namespace}"
+    return FeedCache(
+        config.redis_url,
+        prefix=prefix,
+        hotkey_config=config.hotkeys,
+        metadata_loader=public_metadata_loader(db_path, prefix),
+    ), MinIOStorage(config)
+
+
+def public_metadata_loader(db_path, prefix):
+    """Capture only database identity, never a user request or an old SQL row."""
+
+    def load(content_id):
+        from resource_policy import ResourcePolicy
+
+        with get_connection(db_path) as conn:
+            row = (
+                ResourcePolicy(db_path)
+                .resolve_many(
+                    "__feed_hotkey_public__",
+                    [content_id],
+                    action="feed",
+                    include_private=False,
+                    conn=conn,
+                )
+                .get(content_id)
+            )
+        if row is None:
+            return None
+        key = (
+            f"{prefix}:content:{content_id}:acl:{row['permissionVersion']}:public:v{row['version']}"
+        )
+        return key, row["track"], row["version"]
+
+    return load
 
 
 class FeedServices:
@@ -46,6 +80,7 @@ class FeedServices:
         status = {
             "enabled": self.config.enabled,
             "redis": self.cache.health(),
+            "hotkeys": self.cache.hotkey_status(),
             "minio": self.storage.health(),
             "ffmpeg": bool(shutil.which(self.config.ffmpeg)),
             "ffprobe": bool(shutil.which(self.config.ffprobe)),

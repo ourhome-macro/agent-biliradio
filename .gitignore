@@ -8,11 +8,18 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+/node_modules/
+/artifacts/
 tests/
 !/tests/
 !/tests/test_context_constraint_selection.py
+!/tests/test_quality_gate.py
 !recommend-radio/backend/tests/
 !recommend-radio/backend/tests/*.py
+!recommend-radio/frontend/tests/
+recommend-radio/frontend/tests/*
+!recommend-radio/frontend/tests/*.py
+!recommend-radio/frontend/tests/*.mjs
 examples/
 benchmarks/
 
