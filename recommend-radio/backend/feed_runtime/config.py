@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .hotkeys import HotKeyConfig
+
 
 @dataclass(frozen=True)
 class FeedConfig:
@@ -35,6 +37,7 @@ class FeedConfig:
     import_budget_seconds: float = 3600.0
     seen_cooldown_seconds: int = 86400
     exploration_ratio: float = 0.2
+    hotkeys: HotKeyConfig = HotKeyConfig()
 
     @classmethod
     def from_env(cls, *, data_dir: Path | None = None) -> FeedConfig:
@@ -83,6 +86,7 @@ class FeedConfig:
             import_budget_seconds=float(os.getenv("MEDIA_IMPORT_BUDGET_SECONDS", "3600")),
             seen_cooldown_seconds=int(os.getenv("FEED_SEEN_COOLDOWN_SECONDS", "86400")),
             exploration_ratio=float(os.getenv("FEED_EXPLORATION_RATIO", "0.2")),
+            hotkeys=HotKeyConfig.from_env(),
             max_bytes=int(os.getenv("MEDIA_MAX_BYTES", str(2 * 1024**3))),
             max_duration=int(os.getenv("MEDIA_MAX_DURATION_SECONDS", "3600")),
             scratch_bytes=int(os.getenv("MEDIA_SCRATCH_BYTES", str(10 * 1024**3))),
