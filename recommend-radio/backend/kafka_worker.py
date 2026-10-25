@@ -81,6 +81,8 @@ class JobProcessor:
             return reject_delivery(
                 self.bus.db_path, self.consumer_name, message, "AuthorityMismatch"
             )
+        if row['status'] in {'completed','failed','needs_reconciliation'}:
+            return True  # A batch may have durably finished this job before delivery.
         with get_connection(self.bus.db_path) as conn:
             job = claim(conn, job_id, lease_seconds=self.lease_seconds)
         if job is None:
@@ -134,6 +136,9 @@ class JobProcessor:
                 try:
                     if self.dispatcher:
                         result = self.dispatcher(job)
+                    elif job['kind']=='feed_projection':
+                        from feed_runtime.projection_batch import execute
+                        result = execute(self.bus.db_path,job,cancelled=cancelled)
                     elif job["kind"] in {
                         "media_import",
                         "dialogue",

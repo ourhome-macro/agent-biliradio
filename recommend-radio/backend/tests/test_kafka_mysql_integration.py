@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
-from confluent_kafka import TopicPartition,KafkaError,KafkaException
+from confluent_kafka import TopicPartition, KafkaError, KafkaException
 from database import get_connection, init_db
 from domain_consumer import DomainEventConsumer
 from domain_outbox import claim_events, complete_publish, enqueue_event
@@ -108,12 +108,82 @@ def committed(worker, delivery):
             [TopicPartition(delivery["topic"], delivery["partition"])], timeout=3
         )[0]
     except KafkaException as error:
-        if error.args[0].code() in {KafkaError.NOT_COORDINATOR,
-                                   KafkaError.COORDINATOR_LOAD_IN_PROGRESS,
-                                   KafkaError.COORDINATOR_NOT_AVAILABLE}:
+        if error.args[0].code() in {
+            KafkaError.NOT_COORDINATOR,
+            KafkaError.COORDINATOR_LOAD_IN_PROGRESS,
+            KafkaError.COORDINATOR_NOT_AVAILABLE,
+        }:
             return False  # No confirmed offset yet; pump keeps the original deadline.
         raise
     return partition.offset >= delivery["offset"] + 1
+
+
+def test_projection_batch_finishes_peers_before_later_kafka_notifications(case, monkeypatch):
+    from feed_runtime.reactions import ReactionService
+    from feed_runtime.repository import FeedRepository
+    from ugc.service import UGCService
+
+    monkeypatch.setenv("FEED_ENABLED", "true")
+    monkeypatch.setenv("FEED_REDIS_URL", "")
+    repo = FeedRepository(case.url)
+    posts = UGCService(case.url)
+    post = posts.command(
+        "legacy-owner",
+        "create",
+        {"kind": "text", "title": "Batch Kafka", "visibility": "public"},
+        "draft",
+    )
+    post = posts.command(
+        "legacy-owner", "publish", {"expectedVersion": post["version"]}, "pub", post["contentId"]
+    )
+    service = ReactionService(repo)
+    for actor in range(4):
+        for version, state in enumerate(("like", "dislike", "neutral", "like"), 1):
+            service.set("batch-user-" + str(actor), post["contentId"], state, f"{actor}:{version}")
+    with get_connection(case.url) as conn:
+        jobs = [
+            dict(row)
+            for row in conn.execute(
+                "SELECT * FROM durable_jobs WHERE kind='feed_projection' ORDER BY id"
+            )
+        ]
+    deliveries = [case.bus.publish(j["job_id"], "feed_projection") for j in jobs]
+    worker = KafkaConsumerLoop(
+        case.bus, group=case.prefix + ".batch", lanes=("events",), processor=JobProcessor(case.bus)
+    )
+    try:
+        pump([worker], lambda: all(committed(worker, d) for d in deliveries))
+        with get_connection(case.url) as conn:
+            assert {
+                r[0]
+                for r in conn.execute(
+                    "SELECT status FROM durable_jobs WHERE kind='feed_projection'"
+                )
+            } == {"completed"}
+            assert (
+                conn.execute(
+                    "SELECT likes,dislikes FROM content_counters WHERE content_id=?",
+                    (post["contentId"],),
+                ).fetchone()[0]
+                == 4
+            )
+            assert (
+                conn.execute(
+                    "SELECT COUNT(*) FROM feed_inbox WHERE consumer='reaction'"
+                ).fetchone()[0]
+                == 16
+            )
+        repeated = [case.bus.publish(j["job_id"], "feed_projection") for j in jobs]
+        pump([worker], lambda: all(committed(worker, d) for d in repeated))
+        with get_connection(case.url) as conn:
+            assert (
+                conn.execute(
+                    "SELECT likes FROM content_counters WHERE content_id=?", (post["contentId"],)
+                ).fetchone()[0]
+                == 4
+            )
+    finally:
+        worker.close()
 
 
 @pytest.mark.parametrize("case", ["sql_only"], indirect=True)

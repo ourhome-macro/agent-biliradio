@@ -78,7 +78,7 @@ class FeedCache:
                                    background=hotkey_background)
             self._hotkey_finalizer = weakref.finalize(self, self.hotkeys.close)
 
-    def _redis_call(self, command, *args, probe=False, **kwargs):
+    def _redis_call(self, command, *args, probe=False, _target=None, **kwargs):
         if self.redis is None:
             return None
         with self._redis_state_lock:
@@ -90,7 +90,7 @@ class FeedCache:
             if recovering:
                 self._redis_probe_running = True
         try:
-            value = getattr(self.redis, command)(*args, **kwargs)
+            value = getattr(self.redis if _target is None else _target, command)(*args, **kwargs)
         except (RedisConnectionError, RedisTimeoutError, OSError):
             with self._redis_state_lock:
                 self._redis_retry_at = time.monotonic() + 2.0
@@ -298,6 +298,27 @@ class FeedCache:
         except Exception:
             count("projection", "redis_error")
             raise
+
+    def publish_projection_batch(self, counters, relations):
+        if self.redis is None:
+            return
+        pipe = self.redis.pipeline(transaction=False)
+        for cid, value in counters.items():
+            pipe.eval(
+                _PUBLISH, 1, f"{self.prefix}:counter:{cid}",
+                value["version"], json.dumps(value), 300,
+            )
+        for value in relations:
+            validate_reaction(value["state"], value["version"])
+            keys, offset = bitmap_keys(self.prefix, value["content_id"], value["bitmap_id"])
+            pipe.eval(PUBLISH, 4, *keys, offset, str(value["version"]), value["state"], BITMAP_TTL)
+        try:
+            self._redis_call("execute", _target=pipe)
+        except Exception:
+            count("projection_batch", "redis_error")
+            raise
+        finally:
+            pipe.reset()
 
     def reaction(
         self, user_id: str, content_id: str, loader, *, bitmap_id: int | None, expected_version: int

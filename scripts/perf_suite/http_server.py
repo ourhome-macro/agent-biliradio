@@ -173,7 +173,9 @@ def main():
                     job = claim(conn, row[0]) if row else None
                 if job:
                     try:
-                        value = reactions.project(json.loads(job["payload_json"]))
+                        from feed_runtime.projection_batch import run_job
+
+                        value = run_job(reactions, job)
                         with get_connection(db) as conn:
                             finish(conn, job, result=value)
                     except Exception as error:

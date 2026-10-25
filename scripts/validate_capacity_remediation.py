@@ -31,7 +31,59 @@ def main():
         instance = NativeMySQL(args.child / "mysql")
         kafka = None
         try:
+            import hashlib
+            import json
+
+            import sqlalchemy as sa
+            from mysql_storage.schema import canonical_schema, metadata_from_catalog
+            from mysql_storage.upgrade import upgrade_mysql
+
+            catalog = canonical_schema(revision="radio_010")
+            metadata = metadata_from_catalog(catalog)
+            engine = engine_for(instance.url)
+            metadata.create_all(engine)
+            raw = json.dumps(
+                {
+                    "content_id": "migration-content",
+                    "user_id": "legacy-owner",
+                    "event_id": "migration-event",
+                    "state": "like",
+                    "version": 1,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            with engine.begin() as conn:
+                for table in metadata.sorted_tables:
+                    if table.name in catalog and catalog[table.name]["rows"]:
+                        conn.execute(sa.insert(table), catalog[table.name]["rows"])
+                conn.execute(
+                    sa.insert(metadata.tables["durable_jobs"]),
+                    {
+                        "job_id": "migration-projection",
+                        "kind": "feed_projection",
+                        "user_id": "legacy-owner",
+                        "payload_json": raw,
+                        "input_hash": hashlib.sha256(raw.encode()).hexdigest(),
+                        "created_at": 0,
+                        "updated_at": 0,
+                    },
+                )
+            upgrade_mysql(instance.url)
+            assert not upgrade_mysql(instance.url)["changed"]
+            with engine.begin() as conn:
+                row = conn.execute(
+                    sa.text(
+                        "SELECT projection_key,payload_json FROM durable_jobs "
+                        "WHERE job_id='migration-projection'"
+                    )
+                ).one()
+                assert row[0] == "migration-content" and row[1] == raw
+                conn.execute(
+                    sa.text("DELETE FROM durable_jobs WHERE job_id='migration-projection'")
+                )
             env = {**os.environ, "CAPACITY_TEST_DATABASE_URL": str(instance.url)}
+            env["PROJECTION_TEST_DATABASE_URL"] = str(instance.url)
             subprocess.run(
                 [
                     sys.executable,
@@ -40,6 +92,7 @@ def main():
                     "-q",
                     "--tb=short",
                     "recommend-radio/backend/tests/test_capacity_remediation.py",
+                    "recommend-radio/backend/tests/test_projection_batches.py",
                     f"--basetemp={args.child / 'pytest'}",
                     f"--junitxml={output / 'capacity-remediation-mysql.xml'}",
                 ],

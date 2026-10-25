@@ -236,6 +236,9 @@ def dispatch(job: dict, db_path=None):
         from following.sync import execute_sync, probe
         return probe(service, job, payload) if job["kind"] == "creator_follow_probe" else execute_sync(service, job, payload)
     payload = json.loads(job["payload_json"])
+    if job['kind']=='feed_projection':
+        from feed_runtime.projection_batch import execute
+        return execute(resolved_db,job)
     if job['kind'] == 'media_import':
         from job_errors import JobPermanentFailure
         with get_connection(resolved_db) as conn:
@@ -251,14 +254,7 @@ def dispatch(job: dict, db_path=None):
         config = FeedConfig.from_env(data_dir=Path(resolved_db).parent if not mysql_target(resolved_db) else DATA_DIR)
         _cache, storage = resources(config, resolved_db)
         return AudioWorker(resolved_db, config, storage).run(payload['upload_id'], job)
-    if job["kind"] in {"feed_projection", "feed_asset_ready"}:
-        from feed_runtime.config import FeedConfig
-        from feed_runtime.services import FeedServices
-        data_dir = DATA_DIR if mysql_target(resolved_db) else Path(resolved_db).parent
-        config = FeedConfig.from_env(data_dir=data_dir)
-        runtime = FeedServices(user_id=job["user_id"], db_path=resolved_db, config=config)
-        if job["kind"] == "feed_projection":
-            return runtime.reactions.project(payload)
+    if job["kind"] == "feed_asset_ready":
         # Source content, not private preference memory, gets a semantic projection.
         from content_embeddings import ContentEmbeddingService
         from models import Track

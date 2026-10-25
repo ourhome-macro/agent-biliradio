@@ -52,6 +52,11 @@ def enqueue(
     # caller has not written any business data yet.
     begin_write(conn, namespace="job-capacity", key=user_id)
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    projection_key = ''
+    if kind=='feed_projection':
+        projection_key = payload.get('content_id')
+        if not isinstance(projection_key,str) or not projection_key or len(projection_key)>180:
+            raise ValueError('Projection content identity is required')
     digest = hashlib.sha256(raw.encode()).hexdigest()
     job_id = job_id or f"{kind}:{uuid4().hex}"
     begin_write(conn, namespace="job", key=job_id)
@@ -71,8 +76,8 @@ def enqueue(
 
     conn.execute(
         """INSERT INTO durable_jobs
-        (job_id,kind,user_id,lane,payload_json,input_hash,retry_safe,created_at,updated_at,trace_context)
-        VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        (job_id,kind,user_id,lane,payload_json,input_hash,retry_safe,created_at,updated_at,trace_context,projection_key)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
         (
             job_id,
             kind,
@@ -84,6 +89,7 @@ def enqueue(
             now,
             now,
             json.dumps(carrier()),
+            projection_key,
         ),
     )
     return job_id
@@ -132,6 +138,10 @@ def claim(conn, job_id: str, *, now: float | None = None, lease_seconds: int = 3
     now = time.time() if now is None else now
     begin_write(conn, namespace="job", key=job_id)
     row = conn.execute("SELECT * FROM durable_jobs WHERE job_id=?", (job_id,)).fetchone()
+    if row and row['kind']=='feed_projection' and getattr(conn,'dialect',None)=='mysql':
+        # Batch consumers also lease projection rows. Re-read under that same
+        # row lock before deciding to claim; a plain SELECT can precede their commit.
+        row = conn.lock_row('durable_jobs',{'job_id':job_id})
     if row is None or row["status"] in ("completed", "failed", "needs_reconciliation"):
         return None
     if row["status"] == "queued" and row["available_at"] > now:

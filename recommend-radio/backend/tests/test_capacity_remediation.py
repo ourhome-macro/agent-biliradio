@@ -189,7 +189,10 @@ def test_kafka_partial_commit_error_keeps_only_failed_partition_pending(worker):
     assert set(loop.inflight) == {("jobs", 1)}
 
 
-def test_rebuild_excludes_incremental_projection_for_same_ugc_content(tmp_path, monkeypatch):
+@pytest.mark.parametrize("batched", [False, True])
+def test_rebuild_excludes_incremental_projection_for_same_ugc_content(
+    tmp_path, monkeypatch, batched
+):
     import feed_runtime.reactions as module
 
     monkeypatch.setenv("FEED_ENABLED", "true")
@@ -237,7 +240,11 @@ def test_rebuild_excludes_incremental_projection_for_same_ugc_content(tmp_path, 
                     "state": "like",
                     "version": 1,
                 }
-                projection = projecting.submit(service.project, payload)
+                projection = (
+                    projecting.submit(service.project_many, [payload])
+                    if batched
+                    else projecting.submit(service.project, payload)
+                )
                 # SQLite blocks at BEGIN IMMEDIATE; MySQL reaches the named lock.
                 if os.getenv("CAPACITY_TEST_DATABASE_URL"):
                     assert attempted.wait(5)

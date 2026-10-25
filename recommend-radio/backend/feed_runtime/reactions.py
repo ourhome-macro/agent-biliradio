@@ -286,6 +286,31 @@ class ReactionService:
         count("projection")
         return counter
 
+    def project_many(self, payloads, *, guard=None):
+        from .projection_jobs import user_bitmap_ids
+        from .projection_sql import MAX_BATCH, apply_many, validate
+
+        if not payloads or len(payloads) > MAX_BATCH:
+            raise ValueError("A bounded nonempty projection batch is required")
+        for value in payloads:
+            validate(value)
+        mappings = user_bitmap_ids(self.repo.db_path, {p["user_id"] for p in payloads})
+        with get_connection(self.repo.db_path) as conn:
+            if getattr(conn, "dialect", None) != "mysql" and not conn.in_transaction:
+                conn.execute("BEGIN IMMEDIATE")
+            if guard:
+                guard(conn)
+            result = apply_many(conn, payloads, begin_write)
+            if guard:
+                guard(conn)
+        for value in result["relations"]:
+            value["bitmap_id"] = mappings[value["user_id"]]
+        if self.cache:
+            self.cache.publish_projection_batch(result["counters"], result["relations"])
+        count("projection_batch", "events", result["events"])
+        count("projection_batch", "coalesced", result["coalesced"])
+        return result
+
     def rebuild(self):
         with get_connection(self.repo.db_path) as conn:
             ids = [

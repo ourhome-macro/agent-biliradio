@@ -19,6 +19,7 @@ from .infra import port
 
 class Server:
     def __init__(self, directory, db, redis, **options):
+        self.consumers = []
         self.port = port()
         self.base = f"http://127.0.0.1:{self.port}"
         self.log = (directory / ("http-" + uuid4().hex[:8] + ".log")).open("wb")
@@ -29,6 +30,32 @@ class Server:
             "prefix": "perf:" + uuid4().hex,
             **options,
         }
+        processes = config.pop("projectionProcesses", 0)
+        if processes:
+            config["projector"] = False
+            try:
+                for _ in range(processes):
+                    ready = directory / ("consumer-" + uuid4().hex + ".ready")
+                    child_config = {**config, "workerReady": str(ready)}
+                    child = subprocess.Popen(
+                        [sys.executable, "-m", "perf_suite.projection_consumer"],
+                        env={**os.environ, "PERF_CONFIG": json.dumps(child_config)},
+                        stdout=self.log,
+                        stderr=subprocess.STDOUT,
+                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                    )
+                    self.consumers.append(child)
+                    deadline = time.monotonic() + 30
+                    while not ready.exists():
+                        if child.poll() is not None or time.monotonic() >= deadline:
+                            raise RuntimeError("Isolated projection consumer failed readiness")
+                        time.sleep(0.1)
+            except Exception:
+                for child in self.consumers:
+                    child.terminate()
+                    child.wait(timeout=10)
+                self.log.close()
+                raise
         self.process = subprocess.Popen(
             [sys.executable, "-m", "perf_suite.http_server"],
             env={
@@ -45,6 +72,7 @@ class Server:
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             if self.process.poll() is not None:
+                self.close()
                 raise RuntimeError("Benchmark HTTP server exited; inspect its local log")
             try:
                 if requests.get(self.base + "/bench/ready", timeout=0.3).status_code == 200:
@@ -65,6 +93,13 @@ class Server:
         except subprocess.TimeoutExpired:
             self.process.kill()
             self.process.wait(timeout=5)
+        for child in self.consumers:
+            child.terminate()
+            try:
+                child.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait(timeout=5)
         self.log.close()
 
 
@@ -330,8 +365,16 @@ def run_cache(directory, db, redis, *, quick=False, feed_only=False):
     return results
 
 
-def run_reactions(directory, db, redis, content, *, quick=False):
-    server = Server(directory, db, redis, projector=True, content=content)
+def run_reactions(directory, db, redis, content, *, quick=False, processes=0, scalar=False):
+    server = Server(
+        directory,
+        db,
+        redis,
+        projector=True,
+        content=content,
+        projectionProcesses=processes,
+        scalarProjection=scalar,
+    )
     result_rows = []
     try:
         for phase, rate in enumerate((200, 500, 1000, 2000)):
@@ -354,6 +397,9 @@ def run_reactions(directory, db, redis, content, *, quick=False):
                     "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; "
                     "excludes Kafka transport"
                 ),
+                consumerPlacement="processes" if processes else "HTTP process threads",
+                consumerMode="scalar" if scalar else "batch",
+                sqlMetricScope="HTTP process only" if processes else "HTTP and consumer threads",
             )
             save(directory / f"raw-reaction-{rate}.json", rows)
             result_rows.append(result)
