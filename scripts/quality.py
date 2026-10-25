@@ -76,7 +76,17 @@ def configuration(files: list[str]) -> None:
 
 def isolated_environment(directory: str) -> dict[str, str]:
     # Do not inherit local credentials or silently load the developer's .env.
-    prefixes = ("AMEM_", "FEED_", "SEARCH_ES_", "KAFKA_", "RABBITMQ_", "OPENAI_", "DEEPSEEK_")
+    prefixes = (
+        "AMEM_",
+        "FEED_",
+        "MINIO_",
+        "UGC_",
+        "SEARCH_ES_",
+        "KAFKA_",
+        "RABBITMQ_",
+        "OPENAI_",
+        "DEEPSEEK_",
+    )
     env = {k: v for k, v in os.environ.items() if not k.startswith(prefixes)}
     env.update(
         APP_DATA_DIR=directory,

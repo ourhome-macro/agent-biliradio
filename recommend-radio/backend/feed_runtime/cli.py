@@ -17,6 +17,7 @@ def main():
         "command",
         choices=(
             "health",
+            "cleanup-audio-uploads",
             "provision",
             "rebuild",
             "rebuild-bitmaps",
@@ -59,6 +60,11 @@ def main():
             if not target_db:
                 raise SystemExit("restore requires --target-db as a new path")
             result = restore_backup(args.backup_dir, target_db, runtime.storage)
+    elif args.command == 'cleanup-audio-uploads':
+        if not args.apply:
+            raise SystemExit('Audio staging cleanup requires --apply')
+        from ugc.uploads import AudioUploads
+        result = AudioUploads(runtime.repo.db_path, runtime.storage).expire()
     elif args.command == "operations":
         from .operations import FeedOperations
 

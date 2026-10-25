@@ -46,7 +46,7 @@ async function start() {
     const value = await feedApi.start(props.contentId, crypto.randomUUID(), controller.signal)
     if (!alive || version !== generation) { void feedApi.release(value.playbackId); return }
     playback = value
-    if (!value.sourceComplete || value.status !== 'ready') throw new Error('Only complete stored media can be used by a post')
+    if (!value.sourceComplete || value.status !== 'ready') throw new Error('Media is not available')
     attach(value, version); message.value = ''
     timer = setTimeout(() => void beat(version), Math.min(5000, Math.max(250, refreshAt - Date.now())))
   } catch { if (alive && version === generation) { failed.value = true; message.value = '视频不可用，或当前账号没有观看权限'; stop() } }

@@ -8,10 +8,11 @@
       </aside>
       <form class="editor" @submit.prevent="save">
         <h2>{{ current ? current.status === 'draft' ? '编辑草稿' : '编辑内容' : '新的草稿' }}</h2>
-        <label>内容形式<select v-model="form.kind" aria-label="内容形式" :disabled="busy || !!current"><option value="text">文字</option><option value="video">引用视频</option></select></label>
+        <label>内容形式<select v-model="form.kind" aria-label="内容形式" :disabled="busy || !!current"><option value="text">文字</option><option value="video">引用视频</option><option value="audio">上传音频</option></select></label>
         <label>标题<input v-model="form.title" maxlength="200" :disabled="busy" placeholder="给这段分享起个标题" required /></label>
         <label>正文<textarea v-model="form.body" rows="12" maxlength="50000" :disabled="busy" placeholder="写下你的音乐感受…" /></label>
         <label v-if="form.kind === 'video'">已入库视频<select v-model="form.mediaSourceContentId" aria-label="已入库视频" :disabled="busy"><option value="">请选择可引用的视频</option><option v-for="media in mediaCandidates" :key="media.contentId" :value="media.contentId">{{ media.title }}{{ media.visibility === 'private' ? '（私有）' : '' }}</option></select><small>视频必须已完成入库；私有来源的可见范围由服务端校验。</small></label>
+        <label v-if="form.kind === 'audio'">音频文件<input type="file" accept="audio/*,.flac,.wav,.m4a" :disabled="busy || current?.status === 'published' || !form.title.trim()" @change="uploadAudio" /><small>最大 64 MB。上传后自动校验处理，完成后可发布。</small><span role="status">{{ audioStatus }}</span><button v-if="current?.audioUploadId && !busy" type="button" @click="checkAudio">刷新音频状态</button></label>
         <label>可见范围<select v-model="form.visibility" aria-label="可见范围" :disabled="busy"><option value="private">仅自己</option><option value="public">公开</option></select></label>
         <p class="muted">{{ current?.status === 'published' ? '保存会更新已发布内容；改为“仅自己”后公开链接将不再对其他人可见。' : '保存为草稿不会对外发布，发布前请确认可见范围。' }}</p>
         <div class="actions"><button class="primary" :disabled="busy || !form.title.trim()">{{ busy ? '正在保存…' : '保存' }}</button><button v-if="current?.status === 'draft'" type="button" :disabled="busy || dirty" @click="publish">发布</button><RouterLink v-if="current" :to="`/content/${current.contentId}`">查看详情</RouterLink><button v-if="current" type="button" :disabled="busy" @click="reload">重新加载</button></div>
@@ -27,14 +28,16 @@ import { RouterLink, useRoute } from 'vue-router'
 import { ugcApi, type UGCPost, type PostInput, type MediaCandidate } from '@/api/ugc'
 const route = useRoute(), posts = ref<UGCPost[]>([]), current = ref<UGCPost | null>(null), mediaCandidates = ref<MediaCandidate[]>([])
 const enabled = ref(false), busy = ref(false), error = ref(''), notice = ref(''), confirmDelete = ref(false)
-const empty = (): PostInput => ({ kind: 'text', title: '', body: '', visibility: 'private', mediaSourceContentId: '' })
+const audioStatus = ref('')
+const empty = (): PostInput => ({ kind: 'text', title: '', body: '', visibility: 'private', mediaSourceContentId: '', audioUploadId: null })
 const form = reactive<PostInput>(empty())
 let saved = JSON.stringify(empty()), alive = true, generation = 0, pending: AbortController | null = null
 const savedSnapshot = ref(saved)
 const dirty = computed(() => JSON.stringify(form) !== savedSnapshot.value)
 function apply(post: UGCPost | null) {
+  if (current.value?.contentId !== post?.contentId) audioStatus.value = ''
   current.value = post
-  Object.assign(form, post ? { kind: post.kind, title: post.title, body: post.body, visibility: post.visibility, mediaSourceContentId: post.mediaSourceContentId || '' } : empty())
+  Object.assign(form, post ? { kind: post.kind, title: post.title, body: post.body, visibility: post.visibility, mediaSourceContentId: post.mediaSourceContentId || '', audioUploadId: post.audioUploadId || null } : empty())
   saved = JSON.stringify(form); savedSnapshot.value = saved; confirmDelete.value = false
 }
 function newDraft() { if (dirty.value && !window.confirm('当前修改尚未保存，确定新建草稿？')) return; generation += 1; pending?.abort(); apply(null); error.value = ''; notice.value = '' }
@@ -59,7 +62,62 @@ async function save() {
   if (form.kind === 'video' && !form.mediaSourceContentId) { error.value = '请选择已入库的视频'; return }
   const value = { ...form, mediaSourceContentId: form.kind === 'video' ? form.mediaSourceContentId : null }
   const post = current.value
-  await mutate(() => post ? ugcApi.update(post.contentId, { title: value.title, body: value.body, visibility: value.visibility, mediaSourceContentId: value.mediaSourceContentId, expectedVersion: post.version }) : ugcApi.create(value), '已保存')
+  await mutate(() => post ? ugcApi.update(post.contentId, { title: value.title, body: value.body, visibility: value.visibility, mediaSourceContentId: value.mediaSourceContentId, audioUploadId: value.kind === 'audio' ? value.audioUploadId : null, expectedVersion: post.version }) : ugcApi.create(value), '已保存')
+}
+async function checkAudio() {
+  const post = current.value
+  const version = generation
+  if (!post?.audioUploadId) return
+  try {
+    const state = await ugcApi.uploadStatus(post.audioUploadId)
+    if (current.value?.contentId !== post.contentId || !alive) return
+    audioStatus.value = ({ awaiting: '等待上传', queued: '等待处理', processing: '正在校验音频', ready: '音频已就绪，可以发布', failed: '音频校验失败，请重新上传', expired: '上传已过期，请重新上传' })[state.status]
+    if (state.status === 'ready' && !dirty.value) {
+      const fresh = await ugcApi.detail(post.contentId)
+      if (alive && version === generation && current.value?.contentId === post.contentId && !dirty.value) apply(fresh)
+    }
+  } catch { audioStatus.value = '暂时无法获取音频状态，请重试' }
+}
+async function uploadAudio(event: Event) {
+  const input = event.target as HTMLInputElement, file = input.files?.[0]
+  if (!file || busy.value) return
+  if (!file.size || file.size > 64 * 1024 * 1024) { error.value = '请选择不超过 64 MB 的音频文件'; return }
+  const version = generation, controller = new AbortController(); pending?.abort(); pending = controller
+  const deadline = setTimeout(() => controller.abort(), 240000)
+  busy.value = true; error.value = ''; audioStatus.value = '正在准备音频…'
+  try {
+    let post = current.value
+    if (!post) post = await ugcApi.create({ ...form, mediaSourceContentId: null, audioUploadId: null })
+    else if (dirty.value) post = await ugcApi.update(post.contentId, { title: form.title, body: form.body, visibility: form.visibility, audioUploadId: form.audioUploadId, expectedVersion: post.version })
+    if (!alive || version !== generation) return
+    apply(post)
+    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+    if (!alive || version !== generation || controller.signal.aborted) return
+    const sha = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')
+    const mime = file.type || ({ wav: 'audio/wav', flac: 'audio/flac', m4a: 'audio/mp4', mp3: 'audio/mpeg', ogg: 'audio/ogg', aac: 'audio/aac' } as Record<string,string>)[file.name.split('.').pop()?.toLowerCase() || ''] || 'application/octet-stream'
+    const session = await ugcApi.initiateUpload(post.contentId, file.size, sha, mime)
+    if (!alive || version !== generation || controller.signal.aborted) return
+    if (!session.upload) throw new Error('无法创建上传会话')
+    post = await ugcApi.update(post.contentId, { audioUploadId: session.uploadId, expectedVersion: post.version })
+    if (!alive || version !== generation) return
+    apply(post); audioStatus.value = '正在上传音频…'
+    const body = new FormData()
+    for (const [key, value] of Object.entries(session.upload.fields)) body.append(key, value)
+    body.append('file', file)
+    const response = await fetch(session.upload.url, { method: 'POST', body, credentials: 'omit', signal: controller.signal })
+    if (!response.ok) throw new Error('音频上传失败，请重新选择文件')
+    await ugcApi.completeUpload(session.uploadId)
+    for (let attempt = 0; attempt < 90; attempt++) {
+      if (!alive || version !== generation || controller.signal.aborted) return
+      const state = await ugcApi.uploadStatus(session.uploadId, controller.signal)
+      if (state.status === 'ready') { const fresh = await ugcApi.detail(post.contentId); if (!alive || version !== generation) return; apply(fresh); audioStatus.value = '音频已就绪，可以发布'; await loadList(); return }
+      if (['failed', 'expired'].includes(state.status)) throw new Error('音频校验失败，请重新上传')
+      audioStatus.value = state.status === 'processing' ? '正在校验处理音频…' : '音频已上传，等待处理…'
+      await new Promise(resolve => setTimeout(resolve, 1500))
+    }
+    audioStatus.value = '音频仍在后台处理，可稍后刷新状态'
+  } catch (cause) { if (alive && version === generation) error.value = cause instanceof Error ? cause.message : '上传失败，请重试' }
+  finally { clearTimeout(deadline); if (alive && version === generation) busy.value = false; input.value = '' }
 }
 function publish() { const post = current.value; if (post && !dirty.value) void mutate(() => ugcApi.publish(post), '已发布') }
 function remove() { const post = current.value; if (post) void mutate(() => ugcApi.remove(post), '已删除') }

@@ -3,8 +3,8 @@
     <RouterLink to="/content-search">← 内容搜索</RouterLink>
     <p v-if="loading" role="status">正在读取内容…</p><p v-if="error" role="alert">{{ error }}</p>
     <article v-if="post">
-      <header><span class="badge">{{ post.kind === 'video' ? '视频分享' : '文字分享' }} · {{ post.status === 'draft' ? '草稿' : post.visibility === 'private' ? '仅自己' : '公开' }}</span><h1>{{ post.title }}</h1><p>{{ post.author.name || '创作者' }}</p></header>
-      <UGCVideo v-if="post.kind === 'video' && post.status === 'published'" :key="`${post.contentId}:${post.permissionVersion}`" :content-id="post.contentId" />
+      <header><span class="badge">{{ post.kind === 'audio' ? '音频分享' : post.kind === 'video' ? '视频分享' : '文字分享' }} · {{ post.status === 'draft' ? '草稿' : post.visibility === 'private' ? '仅自己' : '公开' }}</span><h1>{{ post.title }}</h1><p>{{ post.author.name || '创作者' }}</p></header>
+      <UGCVideo v-if="['video', 'audio'].includes(post.kind) && post.status === 'published'" :key="`${post.contentId}:${post.permissionVersion}`" :content-id="post.contentId" />
       <p v-else-if="post.kind === 'video'" class="hint">发布后可以从详情页观看引用的视频。</p>
       <div class="body">{{ post.body }}</div>
       <footer><RouterLink v-if="post.canEdit" :to="{ path: '/studio', query: { edit: post.contentId } }">编辑内容</RouterLink><button v-if="post.sharePath && post.visibility === 'public' && post.status === 'published'" @click="share">分享</button><span v-else>此内容没有公开分享入口</span></footer>

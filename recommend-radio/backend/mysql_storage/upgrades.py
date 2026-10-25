@@ -27,7 +27,7 @@ def upgrade_mysql(engine, target):
             ).scalar_one()
             if current == target:
                 return
-            if current == "radio_007" and target in {"radio_008", "radio_009"}:
+            if current == "radio_007" and target in {"radio_008", "radio_009", "radio_010"}:
                 path = (
                     Path(__file__).resolve().parents[1]
                     / "migrations/versions/radio_008_reaction_bitmap.py"
@@ -40,11 +40,27 @@ def upgrade_mysql(engine, target):
                 connection.execute(sa.text("UPDATE alembic_version SET version_num='radio_008'"))
                 connection.commit()
                 current = "radio_008"
-            if current == "radio_008" and target == "radio_009":
+            if current == "radio_008" and target in {"radio_009", "radio_010"}:
                 _upgrade_009(connection)
                 connection.execute(sa.text("UPDATE alembic_version SET version_num='radio_009'"))
                 connection.commit()
                 current = "radio_009"
+            if current == "radio_009" and target == "radio_010":
+                metadata = metadata_from_catalog(canonical_schema())
+                columns = {c['name'] for c in sa.inspect(connection).get_columns('ugc_posts')}
+                if 'audio_upload_id' not in columns:
+                    Operations(MigrationContext.configure(connection)).add_column(
+                        'ugc_posts', metadata.tables['ugc_posts'].c.audio_upload_id._copy())
+                metadata.tables['ugc_audio_uploads'].create(connection, checkfirst=True)
+                for index in metadata.tables['ugc_audio_uploads'].indexes:
+                    index.create(connection, checkfirst=True)
+                actual = {c['name'] for c in sa.inspect(connection).get_columns('ugc_audio_uploads')}
+                expected = {c.name for c in metadata.tables['ugc_audio_uploads'].columns}
+                if not expected <= actual:
+                    raise RuntimeError('MySQL radio_010 upload schema verification failed')
+                connection.execute(sa.text("UPDATE alembic_version SET version_num='radio_010'"))
+                connection.commit()
+                current = 'radio_010'
             if current != target:
                 raise RuntimeError(f"No explicit MySQL migration path from {current} to {target}")
         finally:
@@ -54,7 +70,7 @@ def upgrade_mysql(engine, target):
 def _upgrade_009(connection):
     from domain_event_schema import JOB_PUBLISH_COLUMNS
 
-    metadata = metadata_from_catalog(canonical_schema())
+    metadata = metadata_from_catalog(canonical_schema(revision='radio_009'))
     operations = Operations(MigrationContext.configure(connection))
     inspector = sa.inspect(connection)
     feed = {column["name"]: column for column in inspector.get_columns("feed_content")}
@@ -88,6 +104,8 @@ def _upgrade_009(connection):
     inspector = sa.inspect(connection)
     for name in created | {"feed_content", "durable_jobs"}:
         expected = {column.name for column in metadata.tables[name].columns}
+        if name == 'ugc_posts':
+            expected.discard('audio_upload_id')  # Added only by the subsequent 010 step.
         actual = {column["name"] for column in inspector.get_columns(name)}
         if not expected <= actual:
             raise RuntimeError(f"MySQL radio_009 schema verification failed for {name}")

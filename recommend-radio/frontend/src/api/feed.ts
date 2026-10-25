@@ -20,7 +20,7 @@ export interface FeedPage {
   followingState?: FollowingState
 }
 export interface Playback {
-  playbackId: string; assetId: string; mode: 'cold' | 'stored'; status: string
+  playbackId: string; assetId: string; mode: 'cold' | 'stored' | 'proxy'; status: string
   manifestUrl: string | null; expiresAt: number; sourceComplete: boolean; generation: number
   leaseExpiresAt?: number; manifestExpiresAt?: number | null; refreshAfterSeconds?: number
   generationKey?: string; durationSeconds?: number; seekable?: boolean

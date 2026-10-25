@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .config import FeedConfig
@@ -103,6 +103,36 @@ class MinIOStorage:
             expires=timedelta(seconds=self.config.signed_seconds),
             version_id=version_id,
         )
+
+    def upload_policy(self, key, size, content_type, expires_at):
+        from minio.datatypes import PostPolicy
+
+        policy = PostPolicy(self.config.bucket, datetime.fromtimestamp(expires_at, timezone.utc))
+        policy.add_equals_condition('key', key)
+        policy.add_equals_condition('Content-Type', content_type)
+        policy.add_content_length_range_condition(size, size)
+        fields = self.public.presigned_post_policy(policy)
+        fields.update({'key': key, 'Content-Type': content_type})
+        scheme = 'https' if self.config.minio_public_secure else 'http'
+        return {'url': f'{scheme}://{self.config.minio_public_endpoint}/{self.config.bucket}',
+                'fields': fields, 'method': 'POST'}
+
+    def download_verified(self, key, path, size, digest):
+        response = self.client.get_object(self.config.bucket, key)
+        actual, hasher = 0, hashlib.sha256()
+        try:
+            with path.open('wb') as output:
+                for chunk in response.stream(64 * 1024):
+                    actual += len(chunk)
+                    if actual > size:
+                        raise ValueError('UploadSizeMismatch')
+                    hasher.update(chunk)
+                    output.write(chunk)
+            if actual != size or hasher.hexdigest() != digest:
+                raise ValueError('UploadChecksumMismatch')
+        finally:
+            response.close()
+            response.release_conn()
 
     def remove(self, key: str, *, version_id=None):
         self.client.remove_object(self.config.bucket, key, version_id=version_id)

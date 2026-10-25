@@ -100,8 +100,6 @@ class FeedConfig:
             raise ValueError("Playback lease must allow the 5-second client heartbeat")
         if (self.workdir / "pyproject.toml").exists() or (self.workdir / ".minio.sys").exists():
             raise ValueError("MEDIA_WORKDIR must be a dedicated scratch directory")
-        if self.enabled and (not self.minio_access_key or not self.minio_secret_key):
-            raise ValueError("Feed requires configured MINIO_ACCESS_KEY and MINIO_SECRET_KEY")
         if (
             min(
                 self.max_bytes,

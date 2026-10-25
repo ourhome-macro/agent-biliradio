@@ -16,6 +16,10 @@ class MediaSource:
     video_codec: str = "h264"
     audio_codec: str = "aac"
     cover_url: str = ""
+    video_init: str = ''
+    video_index: str = ''
+    audio_init: str = ''
+    audio_index: str = ''
 
 
 class MediaUnavailable(ValueError):
@@ -91,6 +95,15 @@ class BiliMediaSource:
             # CDN URLs are signed; account cookies never enter a process command line.
             headers=HttpHeader.stream_headers(track.bvid),
             cover_url=track.cover,
+            video_codec=video['codecs'], audio_codec=audio['codecs'],
+            video_init=(video.get('SegmentBase') or video.get('segment_base') or {}).get('Initialization',
+                       (video.get('segment_base') or {}).get('initialization', '')),
+            video_index=(video.get('SegmentBase') or video.get('segment_base') or {}).get('indexRange',
+                        (video.get('segment_base') or {}).get('index_range', '')),
+            audio_init=(audio.get('SegmentBase') or audio.get('segment_base') or {}).get('Initialization',
+                       (audio.get('segment_base') or {}).get('initialization', '')),
+            audio_index=(audio.get('SegmentBase') or audio.get('segment_base') or {}).get('indexRange',
+                        (audio.get('segment_base') or {}).get('index_range', '')),
         )
 
     def close(self):

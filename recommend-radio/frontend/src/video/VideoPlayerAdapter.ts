@@ -28,7 +28,13 @@ export class VideoPlayerAdapter {
     }
     video.addEventListener('loadedmetadata', restorePosition)
     this.cleanupNative = () => video.removeEventListener('loadedmetadata', restorePosition)
-    if (Hls.isSupported()) {
+    if (/\/audio\.m4a(?:\?|$)/.test(manifest)) {
+      const error = () => { if (version === this.generation) onError('audio_media_error') }
+      video.addEventListener('loadedmetadata', play, { once: true })
+      video.addEventListener('error', error)
+      this.cleanupNative = () => { video.removeEventListener('loadedmetadata', restorePosition); video.removeEventListener('loadedmetadata', play); video.removeEventListener('error', error) }
+      video.src = apiUrl(manifest); video.load()
+    } else if (Hls.isSupported()) {
       const apiOrigin = new URL(apiUrl('/'), window.location.href).origin
       const signedFiles = this.signedFiles
       this.hls = new Hls({

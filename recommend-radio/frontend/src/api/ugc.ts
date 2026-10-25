@@ -3,12 +3,14 @@ import { contentChanged } from '@/content/contentChanges'
 
 export interface UGCPost {
   id: string; contentId: string; version: number; permissionVersion: number
-  kind: 'text' | 'video'; status: 'draft' | 'published' | 'deleted'; visibility: 'public' | 'private'
+  kind: 'text' | 'video' | 'audio'; status: 'draft' | 'published' | 'deleted'; visibility: 'public' | 'private'
   title: string; body: string; author: { id: string; name: string }; ownerId?: string; isOwner?: boolean
   mediaSourceContentId: string | null; assetId: string | null; createdAt: number; updatedAt: number
+  audioUploadId?: string | null
   publishedAt: number | null; sharePath: string | null; canEdit: boolean
 }
-export interface PostInput { kind: 'text' | 'video'; title: string; body: string; visibility: 'public' | 'private'; mediaSourceContentId?: string | null }
+export interface PostInput { kind: 'text' | 'video' | 'audio'; title: string; body: string; visibility: 'public' | 'private'; mediaSourceContentId?: string | null; audioUploadId?: string | null }
+export interface AudioUpload { uploadId: string; contentId: string; status: 'awaiting' | 'queued' | 'processing' | 'ready' | 'failed' | 'expired'; expiresAt: number; errorType?: string; upload?: { url: string; fields: Record<string, string>; method: string } }
 export interface MediaCandidate { contentId: string; title: string; assetId: string; visibility: string }
 export interface ContentCapabilities { ugcEnabled: boolean; contentSearchEnabled: boolean }
 async function bounded<T>(path: string, init: RequestInit = {}) {
@@ -33,6 +35,11 @@ async function command(path: string, method: string, body: unknown, key: string)
   return result
 }
 export const ugcApi = {
+  initiateUpload: (id: string, bytes: number, sha256: string, contentType: string) => bounded<AudioUpload>(`/api/ugc/posts/${encodeURIComponent(id)}/uploads`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ bytes, sha256, contentType }),
+  }),
+  completeUpload: (id: string) => bounded<AudioUpload>(`/api/ugc/uploads/${id}/complete`, { method: 'POST' }),
+  uploadStatus: (id: string, signal?: AbortSignal) => bounded<AudioUpload>(`/api/ugc/uploads/${id}`, { signal }),
   capabilities: (signal?: AbortSignal) => bounded<ContentCapabilities>('/api/content/capabilities', { signal }),
   list: (signal?: AbortSignal) => bounded<{ items: UGCPost[] }>('/api/ugc/posts', { signal }),
   detail: (id: string, signal?: AbortSignal) => bounded<UGCPost>(`/api/ugc/posts/${encodeURIComponent(id)}`, { signal }),

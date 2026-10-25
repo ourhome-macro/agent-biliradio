@@ -8,7 +8,7 @@ from database import DATA_DIR, DEFAULT_DB_PATH, database_identity, get_connectio
 from .cache import FeedCache
 from .config import FeedConfig
 from .feed import FeedService
-from .media import MediaService
+from .bili_proxy import ProxyMediaService
 from .reactions import ReactionService
 from .repository import FeedRepository
 from .storage import MinIOStorage
@@ -70,7 +70,7 @@ class FeedServices:
             cache = cache or shared_cache
             storage = storage or shared_storage
         self.cache, self.storage = cache, storage
-        self.media = MediaService(self.repo, self.config, storage)
+        self.media = ProxyMediaService(self.repo, self.config, storage)
         self.feed = FeedService(self.repo, self.config, cache, recommendations=recommendations)
         self.reactions = ReactionService(self.repo, cache)
 
@@ -104,4 +104,5 @@ class FeedServices:
                 status["mediaWorker"] = any("media" in row.get("lanes", ()) for row in workers)
             except Exception:
                 status["queue"], status["mediaWorker"] = False, False
+        status['ready'] = bool(self.config.enabled and status['redis'])
         return status

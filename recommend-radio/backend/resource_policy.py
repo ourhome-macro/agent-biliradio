@@ -36,7 +36,7 @@ class ResourcePolicy:
             if not (action == "read" and row["status"] == "draft" and row["owner_id"] == user_id):
                 return False
         kind = row["resource_kind"] if "resource_kind" in keys else "video"
-        if action in {"feed", "play"} and kind != "video":
+        if action in {"feed", "play"} and kind not in {'video', 'audio'}:
             return False
         if action == "share" and row["scope"] != "public":
             return False
@@ -68,7 +68,7 @@ class ResourcePolicy:
                 p.body AS post_body,p.status AS post_status,p.visibility AS post_visibility,
                 p.version AS post_version,p.permission_version AS post_permission_version,
                 p.media_source_content_id,p.media_asset_id,p.created_at AS post_created_at,
-                p.updated_at AS post_updated_at,p.published_at AS post_published_at,
+                p.updated_at AS post_updated_at,p.published_at AS post_published_at,p.audio_upload_id,
                 a.status AS asset_status,l.asset_id AS linked_asset_id
                 FROM feed_content c LEFT JOIN ugc_posts p ON p.content_id=c.content_id
                 LEFT JOIN content_media_links l ON l.content_id=c.content_id
@@ -106,6 +106,10 @@ class ResourcePolicy:
                 ):
                     return False
                 if row["post_visibility"] != "public" and row["post_author"] != user_id:
+                    return False
+                if row['post_kind'] == 'audio' and operation in {'play', 'feed'} and (
+                    row['asset_status'] != 'ready' or row['media_asset_id'] != row['linked_asset_id']
+                ):
                     return False
                 if row["post_kind"] == "video" and not (
                     operation == "read" and row["post_author"] == user_id
@@ -152,6 +156,7 @@ class ResourcePolicy:
                 "assetId": row["linked_asset_id"],
                 "assetStatus": row["asset_status"] or "empty",
                 "mediaSourceContentId": row["media_source_content_id"],
+                "audioUploadId": row['audio_upload_id'],
                 "createdAt": row["post_created_at"] if post else row["admitted_at"],
                 "updatedAt": row["post_updated_at"] if post else row["admitted_at"],
                 "publishedAt": row["post_published_at"] if post else row["admitted_at"],
