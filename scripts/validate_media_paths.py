@@ -231,7 +231,9 @@ def mysql_upgrade(directory):
         server.close()
 
 
-def proxy_playback(directory):
+def proxy_playback(
+    directory, *, observer=None, db_path=None, resolver_delay=0, upstream_delay=0, fixture_seconds=4
+):
     from feed_runtime import bili_proxy
     from feed_runtime.bili_proxy import ProxyMediaService
     from feed_runtime.config import FeedConfig
@@ -243,6 +245,8 @@ def proxy_playback(directory):
     from werkzeug.serving import make_server
 
     ranges, files, indexes = [], {}, {}
+    load_stats = {"resolutions": 0, "activeUpstream": 0}
+    load_lock = threading.Lock()
     for kind, source in [
         ("video", "testsrc2=size=160x90:rate=24"),
         ("audio", "sine=frequency=440"),
@@ -261,7 +265,7 @@ def proxy_playback(directory):
                 "-i",
                 source,
                 "-t",
-                "4",
+                str(fixture_seconds),
                 *codec,
                 "-movflags",
                 "+dash+global_sidx",
@@ -292,13 +296,31 @@ def proxy_playback(directory):
             assert header, "proxy unexpectedly downloaded a full upstream file"
             a, b = header.removeprefix("bytes=").split("-")
             start, end = int(a), int(b) if b else len(body) - 1
+            end = min(end, len(body) - 1)
+            if start >= len(body) or end < start:
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{len(body)}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             ranges.append((kind, start, end))
             self.send_response(206)
             self.send_header("Content-Length", str(end - start + 1))
             self.send_header("Content-Range", f"bytes {start}-{end}/{len(body)}")
             self.send_header("Content-Type", "video/mp4" if kind == "video" else "audio/mp4")
             self.end_headers()
-            self.wfile.write(body[start : end + 1])
+            with load_lock:
+                load_stats["activeUpstream"] += 1
+            try:
+                for offset in range(start, end + 1, 4096):
+                    if upstream_delay:
+                        time.sleep(upstream_delay)
+                    self.wfile.write(body[offset : min(end + 1, offset + 4096)])
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            finally:
+                with load_lock:
+                    load_stats["activeUpstream"] -= 1
 
         def log_message(self, *args):
             pass
@@ -313,10 +335,14 @@ def proxy_playback(directory):
             pass
 
         def resolve(self, track):
+            with load_lock:
+                load_stats["resolutions"] += 1
+            if resolver_delay:
+                time.sleep(resolver_delay)
             return MediaSource(
                 origin + "/video.mp4",
                 origin + "/audio.mp4",
-                4,
+                float(fixture_seconds),
                 {},
                 video_codec="avc1.64001e",
                 audio_codec="mp4a.40.2",
@@ -331,13 +357,13 @@ def proxy_playback(directory):
 
     original = bili_proxy.validate_media_url
     bili_proxy.validate_media_url = lambda value: validate_media_url(value, allow_local=True)
-    repo = FeedRepository(directory / "proxy.sqlite3")
+    repo = FeedRepository(db_path or directory / "proxy.sqlite3")
     content = repo.admit(
         Track(bvid="BV0000000001", cid=1, title="Music live concert", duration=12),
         user_id="legacy-owner",
     )
     service = ProxyMediaService(repo, FeedConfig(), None, source_factory=Source)
-    playback = service.create("legacy-owner", content, "browser")
+    playback = service.create("legacy-owner", content, "browser-" + uuid4().hex)
     app = Flask("proxy-fixture")
 
     @app.get("/hls.js")
@@ -389,6 +415,21 @@ def proxy_playback(directory):
     serving = threading.Thread(target=http.serve_forever, daemon=True)
     serving.start()
     try:
+        if observer:
+            return observer(
+                {
+                    "app": app,
+                    "http": http,
+                    "base": f"http://127.0.0.1:{http.server_port}",
+                    "service": service,
+                    "playback": playback,
+                    "files": files,
+                    "ranges": ranges,
+                    "stats": load_stats,
+                    "lock": load_lock,
+                    "content": content,
+                }
+            )
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             try:
