@@ -2,6 +2,8 @@
 
 日期：2026-10-25。实现已完成，未部署。批处理改善了积压消化；HTTP 高负载仍有超时，容量验收未通过。
 
+计数的 Redis 落点已进一步核对为 String/SDS，见[存储核对与真实编码实测](counter-sds-audit-2026-10-25.md)。
+
 ## 处理语义
 
 - 每批最多 64 个 `feed_projection` 任务，领取同一内容的到期任务，按索引中的 `available_at,id` 排序，使用 MySQL `FOR UPDATE SKIP LOCKED`；不领取其他类型、顺序 lane 或其他 worker 的活跃租约。带 lane 的 anchor 单独处理。

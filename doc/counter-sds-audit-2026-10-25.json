@@ -1,0 +1,49 @@
+{
+  "date": "2026-10-25",
+  "scope": "owned loopback Redis, no business infrastructure",
+  "redisVersion": "8.2.2",
+  "samples": [
+    {
+      "path": "single",
+      "key": "counter-sds-audit:counter:audit-single",
+      "type": "string",
+      "encoding": "raw",
+      "ttlSeconds": 300,
+      "value": {
+        "content_id": "audit-single",
+        "likes": 7,
+        "dislikes": 2,
+        "version": 12,
+        "updated_at": 1792930000.0
+      }
+    },
+    {
+      "path": "batch",
+      "key": "counter-sds-audit:counter:audit-batch",
+      "type": "string",
+      "encoding": "raw",
+      "ttlSeconds": 300,
+      "value": {
+        "content_id": "audit-batch",
+        "likes": 7,
+        "dislikes": 2,
+        "version": 12,
+        "updated_at": 1792930000.0
+      }
+    },
+    {
+      "path": "refill",
+      "key": "counter-sds-audit:counter:audit-refill",
+      "type": "string",
+      "encoding": "raw",
+      "ttlSeconds": 300,
+      "value": {
+        "content_id": "audit-refill",
+        "likes": 7,
+        "dislikes": 2,
+        "version": 12,
+        "updated_at": 1792930000.0
+      }
+    }
+  ]
+}
