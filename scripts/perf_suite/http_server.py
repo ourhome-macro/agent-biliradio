@@ -59,16 +59,42 @@ def main():
         warm_connection.execute("SELECT 1")
     lock = threading.Lock()
     counters, sql_buckets, origin_buckets = Counter(), Counter(), Counter()
+    sql_profile = {}
     started = time.monotonic()
 
     def sql_count(_conn, _cursor, statement, _params, _context, _many):
+        _context._perf_started = time.perf_counter()
+        text = statement.lower()
+        _context._perf_category = next(
+            (
+                name
+                for name, token in (
+                    ("locks", "business_locks"),
+                    ("bitmap_mapping", "reaction_bitmap_users"),
+                    ("joins", " join "),
+                    ("reaction_state", "content_reactions"),
+                    ("counters", "content_counters"),
+                    ("jobs", "durable_jobs"),
+                )
+                if token in text
+            ),
+            "other",
+        )
         with lock:
             counters["sql"] += 1
             sql_buckets[int(time.monotonic() - started)] += 1
             if statement.lstrip().upper().startswith("SELECT"):
                 counters["select"] += 1
 
+    def sql_elapsed(_conn, _cursor, _statement, _params, context, _many):
+        elapsed = (time.perf_counter() - context._perf_started) * 1000
+        with lock:
+            bucket = sql_profile.setdefault(context._perf_category, {"calls": 0, "wallMs": 0})
+            bucket["calls"] += 1
+            bucket["wallMs"] += elapsed
+
     event.listen(engine_for(db), "before_cursor_execute", sql_count)
+    event.listen(engine_for(db), "after_cursor_execute", sql_elapsed)
 
     def load(identity):
         with lock:
@@ -231,6 +257,7 @@ def main():
                 **counters,
                 "sqlBuckets": dict(sql_buckets),
                 "originBuckets": dict(origin_buckets),
+                "sqlProfile": {k: dict(v) for k, v in sql_profile.items()},
             }
         return {**result, "metrics": metrics, "resources": resources()}
 

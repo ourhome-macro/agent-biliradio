@@ -233,6 +233,7 @@ class KafkaConsumerLoop:
             self._heartbeat()
         except Exception as error:
             LOGGER.warning("Kafka worker SQL heartbeat deferred: %s", type(error).__name__)
+        completed = []
         for key, ticket in list(self.inflight.items()):
             if self.epochs.get(key) != ticket.epoch:
                 continue
@@ -252,21 +253,49 @@ class KafkaConsumerLoop:
                 LOGGER.warning("Kafka processing deferred: %s", type(error).__name__)
                 durable = False
             if durable:
-                try:
-                    self.consumer.commit(
-                        offsets=[TopicPartition(key[0], key[1], ticket.message.offset() + 1)],
-                        asynchronous=False,
-                    )
-                except Exception as error:
-                    LOGGER.warning("Kafka offset commit deferred: %s", type(error).__name__)
-                    ticket.retry_at = time.monotonic() + 1
-                    continue
-                self.inflight.pop(key, None)
-                self.consumer.resume([TopicPartition(*key)])
+                completed.append((key, ticket))
             else:
                 ticket.retry_at = time.monotonic() + 1
                 ticket.future = self.pool.submit(self.processor, ticket.message, ticket.cancelled)
-        message = self.consumer.poll(timeout)
+        ready = [
+            (key, ticket)
+            for key, ticket in completed
+            if self.inflight.get(key) is ticket
+            and self.epochs.get(key) == ticket.epoch
+            and not ticket.cancelled.is_set()
+        ]
+        if ready:
+            try:
+                acknowledgements = self.consumer.commit(
+                    offsets=[
+                        TopicPartition(key[0], key[1], ticket.message.offset() + 1)
+                        for key, ticket in ready
+                    ],
+                    asynchronous=False,
+                )
+            except Exception as error:
+                LOGGER.warning("Kafka offset batch commit deferred: %s", type(error).__name__)
+                for _key, ticket in ready:
+                    ticket.retry_at = time.monotonic() + 1
+            else:
+                failed = {
+                    (part.topic, part.partition)
+                    for part in (acknowledgements or [])
+                    if part.error is not None
+                }
+                resume = []
+                for key, ticket in ready:
+                    if key in failed:
+                        ticket.retry_at = time.monotonic() + 1
+                        continue
+                    if self.inflight.get(key) is ticket and self.epochs.get(key) == ticket.epoch:
+                        self.inflight.pop(key, None)
+                        resume.append(TopicPartition(*key))
+                if resume:
+                    self.consumer.resume(resume)
+        # Paused partitions cannot wake poll when their SQL future completes.
+        # Check promptly while busy; retain the idle poll budget and group callbacks.
+        message = self.consumer.poll(min(timeout, 0.01) if self.inflight else timeout)
         if message is None or message.error():
             return
         key = message.topic(), message.partition()
@@ -324,6 +353,7 @@ def main():
     os.environ["JOB_TRANSPORT"] = "kafka"
     init_db()
     from telemetry_setup import setup
+
     setup("radio-kafka-worker")
     bus = KafkaJobBus(DEFAULT_DB_PATH)
     if args.provision:

@@ -51,7 +51,13 @@ class RadioASGI:
         if path == "/api/agent/events":
             response = await self._stream(Request(scope, receive=receive))
         elif path.startswith("/api/media/streams/"):
-            response = await self._media(Request(scope, receive=receive))
+            from feed_runtime.admission import media_admission
+            from error_code import APIError
+            try:
+                with media_admission():
+                    response = await self._media(Request(scope, receive=receive))
+            except APIError as error:
+                response = JSONResponse({'error':error.message},status_code=error.status_code)
         elif path.startswith("/api/") or path.startswith("/health/") or path == "/metrics":
             await self.flask_app(scope, receive, send)
             return

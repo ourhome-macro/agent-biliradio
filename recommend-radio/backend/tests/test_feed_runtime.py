@@ -58,6 +58,38 @@ def test_fixed_pages_are_idempotent_and_have_no_exposure(setup):
         assert conn.execute("SELECT COUNT(*) FROM recommendation_impressions").fetchone()[0] == 0
 
 
+def test_warm_page_has_bounded_sql_and_still_revokes_cached_content(setup, monkeypatch):
+    import feed_runtime.feed as module
+
+    repo, config, cache = setup
+    for index in range(12):
+        admit(repo, index)
+    service = FeedService(repo, config, cache)
+    first = service.create("alice", mode="new", request_key="batch")
+    queries = []
+    original = module.get_connection
+
+    def traced(*args, **kwargs):
+        conn = original(*args, **kwargs)
+        conn.set_trace_callback(queries.append)
+        return conn
+
+    monkeypatch.setattr(module, "get_connection", traced)
+    page = service.page("alice", first["sessionId"])
+    assert len(page["items"]) == 10
+    assert len([q for q in queries if q.lstrip().upper().startswith("SELECT")]) <= 3
+    hidden = page["items"][0]["contentId"]
+    with get_connection(repo.db_path) as conn:
+        conn.execute(
+            "UPDATE feed_content SET scope='user:bob',owner_id='bob',"
+            "permission_version=permission_version+1 WHERE content_id=?",
+            (hidden,),
+        )
+    refreshed = service.page("alice", first["sessionId"])
+    item = next(i for i in refreshed["items"] if i["contentId"] == hidden)
+    assert item["suppressed"] and "track" not in item
+
+
 def test_page_generation_is_atomic_across_requests(setup):
     repo, config, cache = setup
     for index in range(30):
@@ -156,8 +188,10 @@ def test_atomic_redis_versions_do_not_regress(setup):
     assert cache.counter("x", lambda: {})["likes"] == 3
     cache.publish_reaction("alice", "x", "neutral", 3, bitmap_id=1)
     cache.publish_reaction("alice", "x", "like", 2, bitmap_id=1)
-    assert cache.reaction("alice", "x", lambda: {}, bitmap_id=1,
-                          expected_version=3)["state"] == "neutral"
+    assert (
+        cache.reaction("alice", "x", lambda: {}, bitmap_id=1, expected_version=3)["state"]
+        == "neutral"
+    )
 
 
 def test_cache_coalesces_and_falls_back_when_redis_fails(setup, monkeypatch):

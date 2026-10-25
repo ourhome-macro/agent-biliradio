@@ -21,6 +21,7 @@ from models import Track
 from resource_policy import ResourcePolicy
 
 from .media import MediaService
+from .admission import admitted
 from .repository import encode, identity
 from .source import validate_media_url
 
@@ -127,6 +128,7 @@ class ProxyMediaService(MediaService):
         source_id = value.get("mediaSourceContentId") or content_id
         return self.repo.content(source_id, user_id)
 
+    @admitted
     def create(self, user_id, content_id, request_key):
         if not isinstance(request_key, str) or not request_key or len(request_key) > 180:
             raise APIError.validation_error("Idempotency-Key is required")
@@ -257,6 +259,7 @@ class ProxyMediaService(MediaService):
             fields.pop(key)
         return row["asset_id"] + ":" + hashlib.sha256(encode(fields).encode()).hexdigest()[:20]
 
+    @admitted
     def descriptor(self, playback_id, user_id):
         row = self._playback(playback_id, user_id)
         manifest = json.loads(row["manifest_json"])
@@ -293,6 +296,15 @@ class ProxyMediaService(MediaService):
             "format": "hls",
         }
 
+    @admitted
+    def heartbeat(self,playback_id,user_id):
+        return super().heartbeat(playback_id,user_id)
+
+    @admitted
+    def release(self,playback_id,user_id):
+        return super().release(playback_id,user_id)
+
+    @admitted
     def stream_file(
         self,
         playback_id,

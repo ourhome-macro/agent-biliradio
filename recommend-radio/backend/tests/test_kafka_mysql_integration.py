@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
-from confluent_kafka import TopicPartition
+from confluent_kafka import TopicPartition,KafkaError,KafkaException
 from database import get_connection, init_db
 from domain_consumer import DomainEventConsumer
 from domain_outbox import claim_events, complete_publish, enqueue_event
@@ -103,9 +103,16 @@ def pump(workers, predicate, seconds=30):
 
 
 def committed(worker, delivery):
-    partition = worker.consumer.committed(
-        [TopicPartition(delivery["topic"], delivery["partition"])], timeout=3
-    )[0]
+    try:
+        partition = worker.consumer.committed(
+            [TopicPartition(delivery["topic"], delivery["partition"])], timeout=3
+        )[0]
+    except KafkaException as error:
+        if error.args[0].code() in {KafkaError.NOT_COORDINATOR,
+                                   KafkaError.COORDINATOR_LOAD_IN_PROGRESS,
+                                   KafkaError.COORDINATOR_NOT_AVAILABLE}:
+            return False  # No confirmed offset yet; pump keeps the original deadline.
+        raise
     return partition.offset >= delivery["offset"] + 1
 
 

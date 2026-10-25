@@ -135,6 +135,13 @@ def seed(db):
 
 
 def attach_stats(result, before, after):
+    result["sqlProfile"] = {
+        key: {
+            "calls": value["calls"] - before.get("sqlProfile", {}).get(key, {}).get("calls", 0),
+            "wallMs": value["wallMs"] - before.get("sqlProfile", {}).get(key, {}).get("wallMs", 0),
+        }
+        for key, value in after.get("sqlProfile", {}).items()
+    }
     result["sqlStatements"] = after.get("sql", 0) - before.get("sql", 0)
     result["selectStatements"] = after.get("select", 0) - before.get("select", 0)
     result["originLoads"] = after.get("originLoads", 0) - before.get("originLoads", 0)
@@ -169,13 +176,14 @@ def attach_stats(result, before, after):
     result["processResources"] = after["resources"]
 
 
-def run_cache(directory, db, redis, *, quick=False):
+def run_cache(directory, db, redis, *, quick=False, feed_only=False):
     results = []
-    for experiment, arms in [
+    experiments = [
         ("tiers", [("redis", False), ("local_redis", True)]),
         ("singleflight", [("off", False), ("on", True)]),
         ("hotkey", [("soft_expiry", False), ("proactive", True)]),
-    ]:
+    ]
+    for experiment, arms in [] if feed_only else experiments:
         for seed_value in range(1 if quick else 3):
             ordered = arms if seed_value % 2 == 0 else list(reversed(arms))
             for arm, enabled in ordered:

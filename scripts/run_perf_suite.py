@@ -56,6 +56,11 @@ def child(directory, output, phases, quick):
         if "cache" in phases:
             result["results"]["cache"] = run_cache(output, mysql.url, redis.url, quick=quick)
             save(output / "summary.json", result)
+        if "feed" in phases:
+            result["results"]["cache"] = run_cache(
+                output, mysql.url, redis.url, quick=quick, feed_only=True
+            )
+            save(output / "summary.json", result)
         for phase, module, function in [
             ("stream", "perf_suite.stream_load", "run"),
             ("kafka", "perf_suite.kafka_load", "run"),
@@ -84,7 +89,7 @@ def main():
     parser.add_argument("--phases", default="reactions,cache,stream,kafka,uploads,amem")
     parser.add_argument("--quick", action="store_true")
     args = parser.parse_args()
-    allowed = {"reactions", "cache", "stream", "kafka", "uploads", "amem"}
+    allowed = {"reactions", "cache", "feed", "stream", "kafka", "uploads", "amem"}
     if not args.phases or any(value not in allowed for value in args.phases.split(",")):
         parser.error("Unknown or empty performance phase")
     output = args.output.resolve()

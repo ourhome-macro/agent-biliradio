@@ -330,27 +330,29 @@ class FeedService:
 
             following = render_state(self.repo.db_path, user_id, session)
         with get_connection(self.repo.db_path) as conn:
-            bitmap_user = conn.execute(
-                "SELECT bitmap_id FROM reaction_bitmap_users WHERE user_id=?",
-                (user_id,),
-            ).fetchone()
-            bitmap_id = int(bitmap_user[0]) if bitmap_user else None
             from resource_policy import ResourcePolicy
+
+            current_rows = {}
             authorized = ResourcePolicy(self.repo.db_path).resolve_many(
-                user_id, [item["content_id"] for item in issued], action="feed", conn=conn)
+                user_id,
+                [item["content_id"] for item in issued],
+                action="feed",
+                conn=conn,
+                feed_rows=current_rows,
+            )
+            creators = {}
+            if following is not None and issued:
+                ids = list(dict.fromkeys(item["content_id"] for item in issued))
+                for creator in conn.execute(
+                    "SELECT content_id,creator_id FROM creator_content WHERE content_id IN ("
+                    + ",".join("?" for _ in ids)
+                    + ")",
+                    tuple(ids),
+                ):
+                    creators.setdefault(creator["content_id"], set()).add(creator["creator_id"])
             for item in issued:
                 # Cache never authorizes visibility or reproduces a user's current dislike.
-                row = conn.execute(
-                    """SELECT c.*,a.status AS asset_status,a.manifest_json,
-                    r.state AS reaction,r.version AS reaction_version,
-                    k.likes,k.dislikes,k.version AS counter_version
-                    FROM feed_content c LEFT JOIN content_media_links l ON l.content_id=c.content_id
-                    LEFT JOIN media_assets a ON a.asset_id=l.asset_id
-                    LEFT JOIN content_reactions r ON r.content_id=c.content_id AND r.user_id=?
-                    LEFT JOIN content_counters k ON k.content_id=c.content_id
-                    WHERE c.content_id=?""",
-                    (user_id, item["content_id"]),
-                ).fetchone()
+                row = current_rows.get(item["content_id"])
                 suppressed = (
                     not row
                     or item["content_id"] not in authorized
@@ -360,11 +362,9 @@ class FeedService:
                     or row["asset_status"] in {"unsupported", "retired"}
                 )
                 if following is not None and row:
-                    creator = conn.execute(
-                        "SELECT creator_id FROM creator_content WHERE content_id=?",
-                        (item["content_id"],),
-                    ).fetchone()
-                    suppressed = suppressed or not creator or creator[0] not in following["allowed"]
+                    suppressed = suppressed or not creators.get(
+                        item["content_id"], set()
+                    ).intersection(following["allowed"])
                 output = {
                     "itemId": item["item_id"],
                     "contentId": item["content_id"],
@@ -375,22 +375,18 @@ class FeedService:
                     metadata = self.cache.get(
                         f"content:{row['content_id']}:acl:{row['permission_version']}:"
                         + ("public" if row["scope"] == "public" else user_id),
-                        lambda r=row: json.loads(r["metadata_json"]),
+                        lambda cid=row["content_id"]: dict(authorized[cid]["track"]),
                         version=row["version"],
                         shared=row["scope"] == "public",
                         content_id=row["content_id"],
                     )
                     manifest = json.loads(row["manifest_json"] or "{}")
-                    relation = self.cache.reaction(
-                        user_id,
-                        row["content_id"],
-                        lambda r=row: {
-                            "state": r["reaction"] or "neutral",
-                            "version": r["reaction_version"] or 0,
-                        },
-                        bitmap_id=bitmap_id,
-                        expected_version=row["reaction_version"] or 0,
-                    )
+                    # These facts are already in the authorized SQL snapshot.
+                    # A second Redis read cannot reduce SQL or grant freshness.
+                    relation = {
+                        "state": row["reaction"] or "neutral",
+                        "version": row["reaction_version"] or 0,
+                    }
                     output.update(
                         track=metadata,
                         assetStatus=row["asset_status"] or "empty",
@@ -406,18 +402,6 @@ class FeedService:
                         if manifest.get("files", {}).get("cover.jpg")
                         else None,
                     )
-                    counters = self.cache.counter(
-                        row["content_id"],
-                        lambda r=row: {
-                            "likes": r["likes"] or 0,
-                            "dislikes": r["dislikes"] or 0,
-                            "version": r["counter_version"] or 0,
-                        },
-                        min_version=row["counter_version"] or 0,
-                    )
-                    output["counts"] = {
-                        key: counters.get(key, 0) for key in ("likes", "dislikes", "version")
-                    }
                 items.append(output)
         result = {
             "sessionId": session["session_id"],
@@ -482,7 +466,10 @@ class FeedService:
                     accepted.append(event_id)
                     continue
                 from resource_policy import ResourcePolicy
-                ResourcePolicy(self.repo.db_path).require(user_id, item["content_id"], action="feed", conn=conn)
+
+                ResourcePolicy(self.repo.db_path).require(
+                    user_id, item["content_id"], action="feed", conn=conn
+                )
                 event_type = payload["type"]
                 if event_type == "impression":
                     ratio = event_number(payload, "visibleRatio")
@@ -567,7 +554,10 @@ class FeedService:
 
                 project_event(conn, user_id=user_id, item=dict(item), payload=payload, now=now)
                 # Only grounded positive evidence enters the existing memory outbox.
-                if event_type in {"play_started", "complete"} and json.loads(item["metadata_json"]).get("source") == "bili":
+                if (
+                    event_type in {"play_started", "complete"}
+                    and json.loads(item["metadata_json"]).get("source") == "bili"
+                ):
                     from durable_jobs import enqueue_behavior
 
                     enqueue_behavior(
