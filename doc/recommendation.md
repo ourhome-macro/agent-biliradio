@@ -78,7 +78,7 @@ Discovery 还可以从以下独立供给通道补货：
 
 ## 向量
 
-候选准入时生成并持久化文本向量，文本由规范化作品信息、版本、标题、分 P 标题、UP 主、分区、tags 和 description 组成。在线 MMR只计算 query 向量并读取已存候选向量；候选覆盖不完整时退化为 lexical MMR。
+候选准入后通过持久化 `content_embedding` 任务异步生成文本向量，文本由规范化作品信息、版本、标题、分 P 标题、UP 主、分区、tags 和 description 组成。Discovery 完成不再等待模型编码，任务由 media 通道消费。在线 MMR 读取已存候选向量，query 编码使用单独的 250ms HTTP 超时参数；向量不可用时采用 lexical MMR 并记录原因。
 
 可选音频管线使用 `content_embedding_jobs`：只有用户喜欢/完播过的 Recording，或高 Yield 关键词产生的候选才进入音频队列。配置 CLAP-compatible `/audio-embeddings` 后，worker 获取音频流并请求 30 秒采样向量。
 
@@ -136,6 +136,7 @@ Discovery 还可以从以下独立供给通道补货：
 
 - 推荐 trace 输出 L2、画像、候选池、打分、MMR、持久化和反馈阶段耗时。
 - 画像缓存命中后不重复调用 LLM。
+- 对话选曲和补货入队读取已提交画像，首批卡片与事件同事务发布；首连接 SSE 提供只读会话快照。实现及三秒目标的隔离测量边界见[首批结果优化](recommendation-first-result-2026-10-27.md)。
 - 文本 embedding 不在在线请求中批量计算候选向量。
 - query embedding 不可用或候选向量覆盖不足时使用 lexical MMR。
 - Discovery、音频 embedding 和关键词演化都是可失败的异步补给能力，不改变 SQLite 已提交事实。

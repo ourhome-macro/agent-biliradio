@@ -44,7 +44,7 @@ redis.call('xclaim',KEYS[1],ARGV[1],ARGV[3],0,ARGV[2],'JUSTID');return 1
 def lane_for(kind):
     return (
         "media"
-        if kind in {"media_import", "ugc_audio"}
+        if kind in {"media_import", "ugc_audio", "content_embedding"}
         else "events"
         if kind in {"behavior", "sse", "feed_projection", "feed_asset_ready"}
         else "jobs"
@@ -140,7 +140,7 @@ class RedisJobWorker:
                 return (
                     dispatch_isolated(job, db_path=bus.db_path)
                     if job["kind"]
-                    in {"media_import", "dialogue", "discovery", "evolution", "discovery_watch"}
+                    in {"media_import", "content_embedding", "dialogue", "discovery", "evolution", "discovery_watch"}
                     else dispatch(job, db_path=bus.db_path)
                 )
 

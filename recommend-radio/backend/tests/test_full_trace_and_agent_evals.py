@@ -139,7 +139,8 @@ def test_discovery_trace_records_tool_and_admission_spans(tmp_path) -> None:
         }
     assert spans["bilibili.search"] == "completed"
     assert spans["candidate.admit"] == "completed"
-    assert spans["candidate.embedding.persist"] == "completed"
+    assert spans["candidate.embedding.enqueue"] == "completed"
+    assert "candidate.embedding.persist" not in spans
     metrics = summarize_traces(str(db_path))
     assert metrics["process"]["toolCallSuccessRate"] == 1.0
     assert metrics["process"]["invalidRecallRate"] == 0.0

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -162,16 +163,18 @@ class RecommendationEngine:
                 ),
             ]
         ).strip()
+        embedding_started = time.perf_counter()
         query_vector = self.embedding_service.embed_query(query)
         negative_vector = (
             self.embedding_service.embed_query(negative_query) if negative_query else None
         )
+        embedding_ms = round((time.perf_counter() - embedding_started) * 1000, 3)
         if not query_vector or len(query_vector) not in dimensions:
             return self._lexical_mmr(candidates, output_limit), {
                 "mode": "lexical_fallback",
                 "candidateCount": len(candidates),
                 "negativeSampleCount": len(request.recent_context.get("negativeSamples", [])),
-                "embeddingMs": 0.0,
+                "embeddingMs": embedding_ms,
                 "reason": "query_embedding_unavailable",
             }
         if negative_vector and len(negative_vector) not in dimensions:
@@ -218,7 +221,7 @@ class RecommendationEngine:
             "model": self.embedding_service.text_model,
             "candidateCount": len(candidates),
             "negativeSampleCount": len(request.recent_context.get("negativeSamples", [])),
-            "embeddingMs": 0.0,
+            "embeddingMs": embedding_ms,
             "candidateVectors": "persisted",
             "diversitySpace": diversity_space,
         }

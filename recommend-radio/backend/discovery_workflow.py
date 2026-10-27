@@ -302,12 +302,12 @@ class DiscoveryWorkflow:
         governance_variant = state["governance_variant"]
         started = state["started"]
         admitted_tracks = [Track.from_dict(t) for t in state["admitted_tracks"]]
+        from embedding_jobs import enqueue_text
+
         with measure_step(
-            full_trace, "candidate.embedding.persist", kind="embedding"
+            full_trace, "candidate.embedding.enqueue", kind="embedding"
         ) as measurement:
-            embedding_result = self.service.content_embeddings.ensure_text_embeddings(
-                admitted_tracks[:64]
-            )
+            embedding_result = enqueue_text(self.service.content_embeddings, admitted_tracks[:64])
             audio_queued = self.service.content_embeddings.enqueue_audio_embeddings(
                 admitted_tracks[:64]
             )
@@ -336,7 +336,7 @@ class DiscoveryWorkflow:
             "embedding": {**embedding_result, "audioQueued": audio_queued},
             "timing": {
                 "queries": query_timings,
-                "embeddingPersistMs": embedding_ms,
+                "embeddingEnqueueMs": embedding_ms,
                 "totalMs": round((time.time() - started) * 1000, 2),
             },
         }

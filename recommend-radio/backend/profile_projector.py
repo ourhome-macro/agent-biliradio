@@ -128,10 +128,11 @@ class RecommendationOpenAIChatClient:
         api_key = self._api_key()
         from agent_memory_runtime.llm.transport import get_openai_client
 
+        route_timeout = max(0.1, min(2.0, _env_float("RECOMMEND_DIALOGUE_ROUTER_TIMEOUT_SECONDS", 1.2)))
         client = get_openai_client(
             base_url=self.base_url,
             api_key_env=self.api_key_env,
-            timeout_seconds=self.timeout_seconds,
+            timeout_seconds=min(self.timeout_seconds, route_timeout),
             api_key=api_key,
         )
         started = time.perf_counter()
@@ -145,7 +146,7 @@ class RecommendationOpenAIChatClient:
             tool_choice="required",
             temperature=0,
             top_p=1,
-            max_tokens=min(self.max_tokens, 800),
+            max_tokens=min(self.max_tokens, 400),
             extra_body=self.extra_body,
             stream=False,
         ),model=self.model,provider="recommendation")

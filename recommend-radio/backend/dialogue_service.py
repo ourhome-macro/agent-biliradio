@@ -62,7 +62,7 @@ from dialogue_rules import (
     _trace_source_labels,
     _utc_now,
 )
-from error_code import APIError
+from error_code import APIError, ErrorCode
 from full_trace import FullTrace, hash_text
 from music_agent import music_operation
 from profile_projector import _default_llm_client
@@ -109,6 +109,14 @@ class MusicDialogueService:
         with get_connection(self.db_path) as conn:
             session = self.repository._get_or_create_session(conn, session_id=session_id)
             return self._serialize_session(conn, session)
+
+    def session_snapshot(self, session_id: str) -> dict[str, Any]:
+        """Read-only reconnect snapshot: never create sessions or invoke a model."""
+        with get_connection(self.db_path) as conn:
+            session = self.repository._load_session(conn, session_id)
+            if session is None:
+                raise KeyError(session_id)
+            return self._serialize_session(conn, session, include_analysis=False)
 
     def resolve_session_id(self, session_id: str | None = None) -> str:
         """Resolve or create a session without running profile analysis."""
@@ -597,12 +605,11 @@ class MusicDialogueService:
                 or "这轮"
             )
             memory_ids = [] if write_result is None else write_result.get("memoryIds") or []
-            analysis = self._safe_analysis()
             assistant_text = _recommendation_reply(
                 topic=title_topic,
                 recommendation_count=len(recommendations),
                 source_text=normalized,
-                profile_hint=_profile_hint(analysis),
+                profile_hint="",
             )
             with get_connection(self.db_path) as conn:
                 card = self.repository._insert_card(
@@ -643,7 +650,12 @@ class MusicDialogueService:
                     pending_context=_card_context(card),
                 )
                 session = self.repository._load_session(conn, resolved_session_id)
-                result = self._serialize_session(conn, session)
+                result = self._serialize_session(conn, session, include_analysis=False)
+                ready = getattr(progress, "recommendation_ready", None)
+                if ready is not None:
+                    ready(conn, result)
+            # Card + first-result event are committed before optional analysis.
+            result["analysis"] = self._safe_analysis()
             if write_result is not None:
                 result["memoryIds"] = write_result.get("memoryIds") or []
                 result["eventId"] = write_result.get("eventId")
@@ -1313,7 +1325,7 @@ class MusicDialogueService:
 
     def _safe_analysis(self) -> dict[str, Any]:
         try:
-            return self.recommendation_service.music_profile_analysis(scene="conversation")
+            return self.recommendation_service.music_profile_analysis(scene="conversation", committed=True)
         except Exception:
             return _empty_analysis()
 
@@ -1325,6 +1337,8 @@ class MusicDialogueService:
             return _canonical_route(rule_route, message, source="rule", confidence=1.0)
         if not _dialogue_router_llm_enabled():
             return _canonical_route(rule_route, message, source="rule_fallback", confidence=0.0)
+        from openai import APITimeoutError
+
         try:
             route = _llm_route_message(
                 message,
@@ -1335,5 +1349,8 @@ class MusicDialogueService:
                 ),
             )
             return _canonical_route(route, message, source="llm_tool", confidence=0.72)
+        except (APITimeoutError, TimeoutError):
+            # A deadline must not turn an ambiguous intent into a relaxed request.
+            raise APIError(ErrorCode.CONFLICT, "请求理解暂时超时，请重试", 504) from None
         except Exception:
             return _canonical_route(rule_route, message, source="rule_fallback", confidence=0.0)

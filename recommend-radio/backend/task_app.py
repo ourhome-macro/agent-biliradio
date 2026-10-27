@@ -76,12 +76,12 @@ def publish_job(job_id: str, kind: str) -> None:
 
     from agent_memory_runtime.telemetry import carrier, span
     setup('radio-outbox')
-    queue = "radio.media.v1" if kind in {"media_import", "ugc_audio"} else "radio.events.v2" if kind in {"behavior", "sse", "feed_projection", "feed_asset_ready"} else "radio.jobs.v2"
+    queue = "radio.media.v1" if kind in {"media_import", "ugc_audio", "content_embedding"} else "radio.events.v2" if kind in {"behavior", "sse", "feed_projection", "feed_asset_ready"} else "radio.jobs.v2"
     with get_connection() as conn:
         row = conn.execute('SELECT trace_context FROM durable_jobs WHERE job_id=?', (job_id,)).fetchone()
     parent = json.loads(row['trace_context']) if row else {}
     with span('messaging.publish', parent=parent, attributes={'job.kind':kind,'job.id':job_id}):
-        task = execute_media_job if kind in {"media_import", "ugc_audio"} else execute_job
+        task = execute_media_job if kind in {"media_import", "ugc_audio", "content_embedding"} else execute_job
         task.apply_async(args=[job_id], task_id=job_id, queue=queue,
                          routing_key=queue, delivery_mode=2, headers=carrier())
 
@@ -236,6 +236,9 @@ def dispatch(job: dict, db_path=None):
         from following.sync import execute_sync, probe
         return probe(service, job, payload) if job["kind"] == "creator_follow_probe" else execute_sync(service, job, payload)
     payload = json.loads(job["payload_json"])
+    if job["kind"] == "content_embedding":
+        from embedding_jobs import execute
+        return execute(resolved_db, job)
     if job['kind']=='feed_projection':
         from feed_runtime.projection_batch import execute
         return execute(resolved_db,job)

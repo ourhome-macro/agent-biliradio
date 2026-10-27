@@ -1,5 +1,7 @@
 # 音乐助手推荐全链路时长采样（2026-09-18）
 
+本文为历史样本；后续关键路径改动与受控浏览器对照见[2026-10-27 首批推荐结果优化](recommendation-first-result-2026-10-27.md)，两者不混作同一环境的性能数据。
+
 ## 口径
 
 本地 Radio/AMEM，提示词“给我推荐一些唱跳舞台”，浏览器 Edge；起点为点击“发送”，终点为当前页推荐卡显示 8 首歌曲并标记 `completed`。后端使用持久任务、业务 trace 和 SSE 事件时间；单次样本，不代表不同 B 站源站或冷/热缓存状态的百分位数。原始数据位于本地忽略目录 `recommend-radio/server-data/timing-review/agent-timing.json`。

@@ -1,0 +1,713 @@
+{
+  "date": "2026-10-27",
+  "scope": "Isolated controlled dependencies; real Vue browser rendering, no production SLA claim",
+  "evidence": {
+    "sqliteTenPairs": {
+      "source": "artifacts/perf/recommendation-first-result/sqlite-ten-pairs.json",
+      "sha256": "456a0cdd43a46ce7a4098f1367bbd0ae815f9723fe6122d726b0cfd29e03c825",
+      "result": {
+        "scope": "Real Vue + HTTP + replayable SSE + SQLite; fixture identities; controlled 3200ms profile model, no external provider or Kafka; sequential requests",
+        "baselineCommit": "fcaf202c92e967671638ede54241e5be20b00951",
+        "before": {
+          "samples": [
+            {
+              "trial": 0,
+              "cache": "cold",
+              "visibleMs": 5110.899999976158,
+              "receivedMs": 5061.299999952316
+            },
+            {
+              "trial": 0,
+              "cache": "warm",
+              "visibleMs": 2039.199999988079,
+              "receivedMs": 2002.800000011921
+            },
+            {
+              "trial": 1,
+              "cache": "cold",
+              "visibleMs": 5282.5,
+              "receivedMs": 5246.5
+            },
+            {
+              "trial": 1,
+              "cache": "warm",
+              "visibleMs": 2092.100000023842,
+              "receivedMs": 2050.600000023842
+            },
+            {
+              "trial": 2,
+              "cache": "cold",
+              "visibleMs": 5096.5,
+              "receivedMs": 5060.199999988079
+            },
+            {
+              "trial": 2,
+              "cache": "warm",
+              "visibleMs": 2105.5,
+              "receivedMs": 2065.5
+            },
+            {
+              "trial": 3,
+              "cache": "cold",
+              "visibleMs": 5130.5,
+              "receivedMs": 5094.400000035763
+            },
+            {
+              "trial": 3,
+              "cache": "warm",
+              "visibleMs": 2031.6000000238419,
+              "receivedMs": 1996.1000000238419
+            },
+            {
+              "trial": 4,
+              "cache": "cold",
+              "visibleMs": 5308.5,
+              "receivedMs": 5271.300000011921
+            },
+            {
+              "trial": 4,
+              "cache": "warm",
+              "visibleMs": 2043.8999999761581,
+              "receivedMs": 1998.0999999642372
+            },
+            {
+              "trial": 5,
+              "cache": "cold",
+              "visibleMs": 5650.799999952316,
+              "receivedMs": 5607.399999976158
+            },
+            {
+              "trial": 5,
+              "cache": "warm",
+              "visibleMs": 2190.699999988079,
+              "receivedMs": 2138.099999964237
+            },
+            {
+              "trial": 6,
+              "cache": "cold",
+              "visibleMs": 5646.200000047684,
+              "receivedMs": 5591.800000011921
+            },
+            {
+              "trial": 6,
+              "cache": "warm",
+              "visibleMs": 2152.300000011921,
+              "receivedMs": 2090.400000035763
+            },
+            {
+              "trial": 7,
+              "cache": "cold",
+              "visibleMs": 5593.599999964237,
+              "receivedMs": 5545.699999988079
+            },
+            {
+              "trial": 7,
+              "cache": "warm",
+              "visibleMs": 2085.800000011921,
+              "receivedMs": 2040.199999988079
+            },
+            {
+              "trial": 8,
+              "cache": "cold",
+              "visibleMs": 5622.399999976158,
+              "receivedMs": 5579.5
+            },
+            {
+              "trial": 8,
+              "cache": "warm",
+              "visibleMs": 2092.100000023842,
+              "receivedMs": 2044.1000000238419
+            },
+            {
+              "trial": 9,
+              "cache": "cold",
+              "visibleMs": 5668.5,
+              "receivedMs": 5621.800000011921
+            },
+            {
+              "trial": 9,
+              "cache": "warm",
+              "visibleMs": 2513.5,
+              "receivedMs": 2448.800000011921
+            }
+          ],
+          "modelCalls": 11
+        },
+        "after": {
+          "samples": [
+            {
+              "trial": 0,
+              "cache": "cold",
+              "visibleMs": 1506.699999988079,
+              "receivedMs": 1474.3999999761581
+            },
+            {
+              "trial": 0,
+              "cache": "warm",
+              "visibleMs": 967.6000000238419,
+              "receivedMs": 935.5
+            },
+            {
+              "trial": 1,
+              "cache": "cold",
+              "visibleMs": 1044.4000000357628,
+              "receivedMs": 1015.9000000357628
+            },
+            {
+              "trial": 1,
+              "cache": "warm",
+              "visibleMs": 1065.7000000476837,
+              "receivedMs": 1046.5
+            },
+            {
+              "trial": 2,
+              "cache": "cold",
+              "visibleMs": 1558.300000011921,
+              "receivedMs": 1526.6000000238419
+            },
+            {
+              "trial": 2,
+              "cache": "warm",
+              "visibleMs": 1569,
+              "receivedMs": 1548.6000000238419
+            },
+            {
+              "trial": 3,
+              "cache": "cold",
+              "visibleMs": 1553.199999988079,
+              "receivedMs": 1524.300000011921
+            },
+            {
+              "trial": 3,
+              "cache": "warm",
+              "visibleMs": 1587.8999999761581,
+              "receivedMs": 1568.2999999523163
+            },
+            {
+              "trial": 4,
+              "cache": "cold",
+              "visibleMs": 1524.5,
+              "receivedMs": 1485.300000011921
+            },
+            {
+              "trial": 4,
+              "cache": "warm",
+              "visibleMs": 1565.2000000476837,
+              "receivedMs": 1526.9000000357628
+            },
+            {
+              "trial": 5,
+              "cache": "cold",
+              "visibleMs": 1558.199999988079,
+              "receivedMs": 1523.3999999761581
+            },
+            {
+              "trial": 5,
+              "cache": "warm",
+              "visibleMs": 1697,
+              "receivedMs": 1654.9000000357628
+            },
+            {
+              "trial": 6,
+              "cache": "cold",
+              "visibleMs": 1614.5999999642372,
+              "receivedMs": 1579.8999999761581
+            },
+            {
+              "trial": 6,
+              "cache": "warm",
+              "visibleMs": 1681.3999999761581,
+              "receivedMs": 1653.0999999642372
+            },
+            {
+              "trial": 7,
+              "cache": "cold",
+              "visibleMs": 1549.300000011921,
+              "receivedMs": 1503.1000000238419
+            },
+            {
+              "trial": 7,
+              "cache": "warm",
+              "visibleMs": 1634.699999988079,
+              "receivedMs": 1591
+            },
+            {
+              "trial": 8,
+              "cache": "cold",
+              "visibleMs": 1539.7000000476837,
+              "receivedMs": 1516
+            },
+            {
+              "trial": 8,
+              "cache": "warm",
+              "visibleMs": 1625.5,
+              "receivedMs": 1586.699999988079
+            },
+            {
+              "trial": 9,
+              "cache": "cold",
+              "visibleMs": 1719.9000000357628,
+              "receivedMs": 1687.5
+            },
+            {
+              "trial": 9,
+              "cache": "warm",
+              "visibleMs": 1654,
+              "receivedMs": 1605
+            }
+          ],
+          "modelCalls": 0
+        }
+      }
+    },
+    "mysqlTenPairs": {
+      "source": "artifacts/perf/recommendation-first-result/mysql/summary.json",
+      "sha256": "c4de058bbef8286190669efa0e01d4edbd45113cc80e72470ad46aefb10da48a",
+      "result": {
+        "scope": "Real Vue + HTTP + replayable SSE + native MySQL; fixture identities; controlled 3200ms profile model, no external provider or Kafka; sequential requests",
+        "baselineCommit": "fcaf202c92e967671638ede54241e5be20b00951",
+        "sourceHashes": {
+          "recommend-radio/backend/content_embeddings.py": "2a96028432bcc0b756ff7bfda50ea5bd9d445168331d93e79758ee160359114e",
+          "recommend-radio/backend/dialogue_delivery.py": "d1f315f56dfbcd2d686fd5dbaec32e377c4599e2b5ac441f1b5ed44f80e9906e",
+          "recommend-radio/backend/dialogue_service.py": "40a66d3b314ab39f533187df2a46773f06ca768bf300b3b0d5462656752bc574",
+          "recommend-radio/backend/dialogue_task_service.py": "3d4d3c1ba793134797e1a2d8146884c9a32fcd9e37f5c03dda93cffb0fb6035a",
+          "recommend-radio/backend/keyword_governance.py": "bfbafc2752460898683e6cbd9d4005583273515b3e98139c76fb61811f18d945",
+          "recommend-radio/backend/profile_projector.py": "6c62f56d4790cbf6001634cee1e2a5850a14a3b780d74ebe5459f04938e519fb",
+          "recommend-radio/backend/recommendation_service.py": "e8a1db0f0e122724ac43b4da5ab430e7371dde14530a49631ed2530abcb258fc",
+          "recommend-radio/backend/web_asgi.py": "f681f60819ad3eeb171e90a231d4005e543c270a6819f643294ea965930d0677"
+        },
+        "before": {
+          "samples": [
+            {
+              "trial": 0,
+              "cache": "cold",
+              "visibleMs": 5963.800000011921,
+              "receivedMs": 5914.800000011921
+            },
+            {
+              "trial": 0,
+              "cache": "warm",
+              "visibleMs": 2038.800000011921,
+              "receivedMs": 2010.800000011921
+            },
+            {
+              "trial": 1,
+              "cache": "cold",
+              "visibleMs": 5649.199999988079,
+              "receivedMs": 5613.399999976158
+            },
+            {
+              "trial": 1,
+              "cache": "warm",
+              "visibleMs": 2094.5,
+              "receivedMs": 2061.600000023842
+            },
+            {
+              "trial": 2,
+              "cache": "cold",
+              "visibleMs": 5683.399999976158,
+              "receivedMs": 5657.300000011921
+            },
+            {
+              "trial": 2,
+              "cache": "warm",
+              "visibleMs": 2107,
+              "receivedMs": 2058.900000035763
+            },
+            {
+              "trial": 3,
+              "cache": "cold",
+              "visibleMs": 5586.699999988079,
+              "receivedMs": 5554.300000011921
+            },
+            {
+              "trial": 3,
+              "cache": "warm",
+              "visibleMs": 2164,
+              "receivedMs": 2118.899999976158
+            },
+            {
+              "trial": 4,
+              "cache": "cold",
+              "visibleMs": 5699.800000011921,
+              "receivedMs": 5666.100000023842
+            },
+            {
+              "trial": 4,
+              "cache": "warm",
+              "visibleMs": 2513.899999976158,
+              "receivedMs": 2476.800000011921
+            },
+            {
+              "trial": 5,
+              "cache": "cold",
+              "visibleMs": 5672.199999988079,
+              "receivedMs": 5634
+            },
+            {
+              "trial": 5,
+              "cache": "warm",
+              "visibleMs": 2588.199999988079,
+              "receivedMs": 2543.100000023842
+            },
+            {
+              "trial": 6,
+              "cache": "cold",
+              "visibleMs": 5706.099999964237,
+              "receivedMs": 5663.099999964237
+            },
+            {
+              "trial": 6,
+              "cache": "warm",
+              "visibleMs": 2605.600000023842,
+              "receivedMs": 2554.400000035763
+            },
+            {
+              "trial": 7,
+              "cache": "cold",
+              "visibleMs": 5678.399999976158,
+              "receivedMs": 5605.300000011921
+            },
+            {
+              "trial": 7,
+              "cache": "warm",
+              "visibleMs": 2034.5,
+              "receivedMs": 1984.0999999642372
+            },
+            {
+              "trial": 8,
+              "cache": "cold",
+              "visibleMs": 5643,
+              "receivedMs": 5581.899999976158
+            },
+            {
+              "trial": 8,
+              "cache": "warm",
+              "visibleMs": 3122.399999976158,
+              "receivedMs": 3061.5
+            },
+            {
+              "trial": 9,
+              "cache": "cold",
+              "visibleMs": 5629.699999988079,
+              "receivedMs": 5564.300000011921
+            },
+            {
+              "trial": 9,
+              "cache": "warm",
+              "visibleMs": 2573.600000023842,
+              "receivedMs": 2511
+            }
+          ],
+          "modelCalls": 11,
+          "underThreeSeconds": false
+        },
+        "after": {
+          "samples": [
+            {
+              "trial": 0,
+              "cache": "cold",
+              "visibleMs": 2639.199999988079,
+              "receivedMs": 2615
+            },
+            {
+              "trial": 0,
+              "cache": "warm",
+              "visibleMs": 2072.5,
+              "receivedMs": 2050.100000023842
+            },
+            {
+              "trial": 1,
+              "cache": "cold",
+              "visibleMs": 1540.199999988079,
+              "receivedMs": 1513.8999999761581
+            },
+            {
+              "trial": 1,
+              "cache": "warm",
+              "visibleMs": 1576,
+              "receivedMs": 1546.800000011921
+            },
+            {
+              "trial": 2,
+              "cache": "cold",
+              "visibleMs": 2113.600000023842,
+              "receivedMs": 2087.400000035763
+            },
+            {
+              "trial": 2,
+              "cache": "warm",
+              "visibleMs": 1556.199999988079,
+              "receivedMs": 1525.1000000238419
+            },
+            {
+              "trial": 3,
+              "cache": "cold",
+              "visibleMs": 2074.600000023842,
+              "receivedMs": 2048.199999988079
+            },
+            {
+              "trial": 3,
+              "cache": "warm",
+              "visibleMs": 2224.399999976158,
+              "receivedMs": 2181.2999999523163
+            },
+            {
+              "trial": 4,
+              "cache": "cold",
+              "visibleMs": 2002.199999988079,
+              "receivedMs": 1963.4000000357628
+            },
+            {
+              "trial": 4,
+              "cache": "warm",
+              "visibleMs": 2097.5,
+              "receivedMs": 2054.100000023842
+            },
+            {
+              "trial": 5,
+              "cache": "cold",
+              "visibleMs": 2014.300000011921,
+              "receivedMs": 1977.300000011921
+            },
+            {
+              "trial": 5,
+              "cache": "warm",
+              "visibleMs": 2167.7999999523163,
+              "receivedMs": 2111.699999988079
+            },
+            {
+              "trial": 6,
+              "cache": "cold",
+              "visibleMs": 2032.300000011921,
+              "receivedMs": 2001.8999999761581
+            },
+            {
+              "trial": 6,
+              "cache": "warm",
+              "visibleMs": 2036.9000000357628,
+              "receivedMs": 1998.300000011921
+            },
+            {
+              "trial": 7,
+              "cache": "cold",
+              "visibleMs": 2062.800000011921,
+              "receivedMs": 2031.1000000238419
+            },
+            {
+              "trial": 7,
+              "cache": "warm",
+              "visibleMs": 1552.0999999642372,
+              "receivedMs": 1501.5999999642372
+            },
+            {
+              "trial": 8,
+              "cache": "cold",
+              "visibleMs": 2050.399999976158,
+              "receivedMs": 1999.5999999642372
+            },
+            {
+              "trial": 8,
+              "cache": "warm",
+              "visibleMs": 2032.800000011921,
+              "receivedMs": 1994.4000000357628
+            },
+            {
+              "trial": 9,
+              "cache": "cold",
+              "visibleMs": 2081,
+              "receivedMs": 2043.5
+            },
+            {
+              "trial": 9,
+              "cache": "warm",
+              "visibleMs": 1565.4000000357628,
+              "receivedMs": 1532.1000000238419
+            }
+          ],
+          "modelCalls": 0,
+          "underThreeSeconds": true
+        }
+      }
+    },
+    "finalSmoke": {
+      "source": "artifacts/perf/recommendation-first-result/summary.json",
+      "sha256": "199a921e686d5d4c64fa6b2781d6a5005f0cc23bd732972a83b47f3447d189b0",
+      "result": {
+        "scope": "Real Vue + HTTP + replayable SSE + SQLite; fixture identities; controlled 3200ms profile model, no external provider or Kafka; sequential requests",
+        "baselineCommit": "fcaf202c92e967671638ede54241e5be20b00951",
+        "sourceHashes": {
+          "recommend-radio/backend/content_embeddings.py": "c245820996c0e5be514736a5dab56b2ddcc321f574806a54799904067fc0d97e",
+          "recommend-radio/backend/dialogue_delivery.py": "9631a2f49c8b6fd9d39268b285ff6890df769e7fdc9e3dc546ead375f8fb8993",
+          "recommend-radio/backend/dialogue_service.py": "40a66d3b314ab39f533187df2a46773f06ca768bf300b3b0d5462656752bc574",
+          "recommend-radio/backend/dialogue_task_service.py": "3d4d3c1ba793134797e1a2d8146884c9a32fcd9e37f5c03dda93cffb0fb6035a",
+          "recommend-radio/backend/keyword_governance.py": "bfbafc2752460898683e6cbd9d4005583273515b3e98139c76fb61811f18d945",
+          "recommend-radio/backend/profile_projector.py": "7e953e5a8cdefb98df933d5f85fa16ed67b5d5ce294b057995acc9a64a0905fc",
+          "recommend-radio/backend/recommendation_service.py": "e8a1db0f0e122724ac43b4da5ab430e7371dde14530a49631ed2530abcb258fc",
+          "recommend-radio/backend/web_asgi.py": "f681f60819ad3eeb171e90a231d4005e543c270a6819f643294ea965930d0677"
+        },
+        "before": {
+          "samples": [
+            {
+              "trial": 0,
+              "cache": "cold",
+              "visibleMs": 5635.799999952316,
+              "receivedMs": 5594.199999988079
+            },
+            {
+              "trial": 0,
+              "cache": "warm",
+              "visibleMs": 2042.5,
+              "receivedMs": 2014.1000000238419
+            }
+          ],
+          "modelCalls": 2,
+          "taskStates": {
+            "completed": 2
+          },
+          "underThreeSeconds": false
+        },
+        "after": {
+          "samples": [
+            {
+              "trial": 0,
+              "cache": "cold",
+              "visibleMs": 1467.199999988079,
+              "receivedMs": 1452
+            },
+            {
+              "trial": 0,
+              "cache": "warm",
+              "visibleMs": 1047.3999999761581,
+              "receivedMs": 1020.3999999761581
+            }
+          ],
+          "modelCalls": 0,
+          "taskStates": {
+            "completed": 2
+          },
+          "underThreeSeconds": true
+        }
+      }
+    }
+  },
+  "summary": {
+    "sqliteTenPairs": {
+      "before": {
+        "cold": {
+          "n": 10,
+          "p95Ms": 5668.5,
+          "maxMs": 5668.5,
+          "underThreeSeconds": 0
+        },
+        "warm": {
+          "n": 10,
+          "p95Ms": 2513.5,
+          "maxMs": 2513.5,
+          "underThreeSeconds": 10
+        },
+        "all": {
+          "n": 20,
+          "p95Ms": 5650.799999952316,
+          "maxMs": 5668.5,
+          "underThreeSeconds": 10
+        }
+      },
+      "after": {
+        "cold": {
+          "n": 10,
+          "p95Ms": 1719.9000000357628,
+          "maxMs": 1719.9000000357628,
+          "underThreeSeconds": 10
+        },
+        "warm": {
+          "n": 10,
+          "p95Ms": 1697,
+          "maxMs": 1697,
+          "underThreeSeconds": 10
+        },
+        "all": {
+          "n": 20,
+          "p95Ms": 1697,
+          "maxMs": 1719.9000000357628,
+          "underThreeSeconds": 20
+        }
+      }
+    },
+    "mysqlTenPairs": {
+      "before": {
+        "cold": {
+          "n": 10,
+          "p95Ms": 5963.800000011921,
+          "maxMs": 5963.800000011921,
+          "underThreeSeconds": 0
+        },
+        "warm": {
+          "n": 10,
+          "p95Ms": 3122.399999976158,
+          "maxMs": 3122.399999976158,
+          "underThreeSeconds": 9
+        },
+        "all": {
+          "n": 20,
+          "p95Ms": 5706.099999964237,
+          "maxMs": 5963.800000011921,
+          "underThreeSeconds": 9
+        }
+      },
+      "after": {
+        "cold": {
+          "n": 10,
+          "p95Ms": 2639.199999988079,
+          "maxMs": 2639.199999988079,
+          "underThreeSeconds": 10
+        },
+        "warm": {
+          "n": 10,
+          "p95Ms": 2224.399999976158,
+          "maxMs": 2224.399999976158,
+          "underThreeSeconds": 10
+        },
+        "all": {
+          "n": 20,
+          "p95Ms": 2224.399999976158,
+          "maxMs": 2639.199999988079,
+          "underThreeSeconds": 20
+        }
+      }
+    }
+  },
+  "verification": {
+    "pr": {
+      "source": "artifacts/quality/pr.xml",
+      "sha256": "bf698cd17d4e6ba6aecdee8442fa97b084e320d1f7439582584c4e7ab245fcbd",
+      "result": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "378",
+        "time": "166.696",
+        "timestamp": "2026-10-27T22:33:27.373704+08:00",
+        "hostname": "PC-20251005ADRE"
+      }
+    },
+    "mysql": {
+      "source": "artifacts/quality/recommendation-first-result-mysql.xml",
+      "sha256": "215ec3323f106e1f914ea584235251a89296c79b7295c6c0be1a4faaa941b167",
+      "result": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "15",
+        "time": "121.665",
+        "timestamp": "2026-10-27T22:33:29.937334+08:00",
+        "hostname": "PC-20251005ADRE"
+      }
+    },
+    "prExitCode": 0,
+    "mysqlExitCode": 0,
+    "mainExecuted": false
+  }
+}

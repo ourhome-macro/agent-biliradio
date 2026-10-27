@@ -410,11 +410,12 @@ class KeywordGovernance:
             else:
                 rows = conn.execute(
                     """
-                    SELECT DISTINCT c.keyword_id, k.family_id
+                    SELECT c.keyword_id, k.family_id
                     FROM discovery_keyword_candidates c
                     JOIN discovery_keywords k ON k.keyword_id=c.keyword_id
                     WHERE c.user_id=? AND c.track_id=?
-                    ORDER BY c.discovered_at DESC LIMIT 3
+                    GROUP BY c.keyword_id, k.family_id
+                    ORDER BY MAX(c.discovered_at) DESC, c.keyword_id LIMIT 3
                     """,
                     (self.user_id, track_id),
                 ).fetchall()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -113,12 +114,33 @@ class ContentEmbeddingService:
             }
 
         now = _utc_now()
+        saved, superseded = 0, 0
         with get_connection(self.db_path) as conn:
+            if getattr(conn, "dialect", None) != "mysql":
+                conn.execute("BEGIN IMMEDIATE")
+            from library_service import LibraryService
+
+            # Lock in a stable order, then recheck metadata after the model call.
+            # A slow old embedding must not replace a newer metadata projection.
+            current = {}
+            for track, _content, _hash_value in sorted(pending, key=lambda p: p[0].track_id):
+                row = (
+                    conn.lock_row("tracks", {"track_id": track.track_id})
+                    if getattr(conn, "dialect", None) == "mysql"
+                    else conn.execute("SELECT * FROM tracks WHERE track_id=?", (track.track_id,)).fetchone()
+                )
+                current[track.track_id] = row
             for (track, _content, content_hash), vector in zip(
                 pending,
                 vectors,
                 strict=True,
             ):
+                row = current[track.track_id]
+                if row is None or _hash(
+                    text_for_track(LibraryService._track_from_row(row))
+                ) != content_hash:
+                    superseded += 1
+                    continue
                 self._save_vector(
                     conn,
                     recording_id=track.recording_id or "",
@@ -129,7 +151,8 @@ class ContentEmbeddingService:
                     vector=vector,
                     now=now,
                 )
-        return {"enabled": True, "embedded": len(pending), "queued": 0}
+                saved += 1
+        return {"enabled": True, "embedded": saved, "queued": superseded, "superseded": superseded}
 
     def text_vectors(self, track_ids: Iterable[str]) -> dict[str, list[float]]:
         return self._vectors(
@@ -181,7 +204,11 @@ class ContentEmbeddingService:
         if not self.text_base_url or not text.strip():
             return None
         try:
-            vectors = self._embed_texts([text])
+            # Online query encoding has a separate budget from offline batches.
+            # A copy avoids racing worker/query settings on a shared service.
+            query = copy.copy(self)
+            query.timeout_seconds = min(self.timeout_seconds, 0.25)
+            vectors = query._embed_texts([text])
         except Exception:
             return None
         return vectors[0] if vectors else None

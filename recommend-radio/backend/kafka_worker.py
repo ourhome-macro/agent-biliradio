@@ -141,6 +141,7 @@ class JobProcessor:
                         result = execute(self.bus.db_path,job,cancelled=cancelled)
                     elif job["kind"] in {
                         "media_import",
+                        "content_embedding",
                         "dialogue",
                         "discovery",
                         "evolution",

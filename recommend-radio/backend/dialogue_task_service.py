@@ -132,14 +132,15 @@ class DialogueTaskService:
             ).has_deepseek_api_key():
                 raise RuntimeError("Personal DeepSeek API Key is required")
             publish("progress", {"stage": "routing", "label": "正在理解你的需求"})
+            from dialogue_delivery import DialogueProgress
+
             result = service.send_message(
                 message,
                 session_id=session_id,
                 context_card_id=context_card_id,
                 context_track_id=context_track_id,
-                progress=lambda stage, payload: publish(
-                    "progress",
-                    {"stage": stage, **dict(payload or {})},
+                progress=DialogueProgress(
+                    self.publisher, task_id=task_id, session_id=session_id, user_id=user_id,
                 ),
             )
             publish("session", {"session": result})

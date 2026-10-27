@@ -247,6 +247,12 @@ class RecommendationService:
                 memories=[],
                 trace_id=f"profile-control:{self.user_id}:{normalized_scene}",
             )
+        elif normalized_scene == "conversation":
+            projection = self.profile_projector.project_committed(
+                user_id=self.user_id,
+                scene=normalized_scene,
+                fallback_profile=fallback_profile,
+            )
         elif not has_personal_key:
             projection = ProfileProjection(
                 profile=fallback_profile,
@@ -518,11 +524,12 @@ class RecommendationService:
         )
         return payload
 
-    def music_profile_analysis(self, scene: str = "home") -> dict[str, Any]:
+    def music_profile_analysis(self, scene: str = "home", *, committed: bool = False) -> dict[str, Any]:
         normalized_scene = self._normalize_scene(scene)
         legacy_profile = self.profile_reader._load_user_profile()
         fallback_profile = self.profile_reader._fallback_music_profile(legacy_profile)
-        projection = self.profile_projector.project(
+        project = self.profile_projector.project_committed if committed else self.profile_projector.project
+        projection = project(
             user_id=self.user_id,
             scene=normalized_scene,
             fallback_profile=fallback_profile,
@@ -651,7 +658,9 @@ class RecommendationService:
     ) -> str | None:
         normalized_scene = self._normalize_scene(scene)
         legacy_profile = self.profile_reader._load_user_profile()
-        projection = self.profile_projector.project(
+        project = (self.profile_projector.project_committed if normalized_scene == "conversation"
+                   else self.profile_projector.project)
+        projection = project(
             user_id=self.user_id,
             scene=normalized_scene,
             fallback_profile=self.profile_reader._fallback_music_profile(legacy_profile),

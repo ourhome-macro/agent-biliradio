@@ -142,14 +142,32 @@ class RadioASGI:
             _cursor(request.headers.get("last-event-id")),
             _cursor(request.query_params.get("lastEventId")),
         )
+        initial = None
         if after == 0:
             after = await asyncio.to_thread(
                 latest_event_id, self.db_path, user_id=user_id, session_id=session_id
             )
+            # Capture the cursor before reading the durable session. A fast task
+            # may finish before EventSource connects; it must still show cards.
+            from dialogue_service import MusicDialogueService
+
+            def snapshot():
+                service = MusicDialogueService(db_path=self.db_path, user_id=user_id)
+                return service.session_snapshot(session_id)
+
+            try:
+                initial = await asyncio.to_thread(snapshot)
+            except KeyError:
+                return JSONResponse({"error": "session not found"}, status_code=404)
 
         async def stream():
             nonlocal after
             yield "retry: 3000\n\n"
+            if initial is not None:
+                value = {"eventId": after, "taskId": "", "sessionId": session_id, "userId": user_id,
+                         "type": "session", "status": "running",
+                         "payload": {"session": initial, "snapshot": True}}
+                yield f"id: {after}\nevent: session\ndata: {json.dumps(value, ensure_ascii=False)}\n\n"
             elapsed = 0.0
             while True:
                 batch = await asyncio.to_thread(
