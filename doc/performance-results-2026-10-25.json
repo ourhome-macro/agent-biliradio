@@ -1,0 +1,2675 @@
+{
+  "environment": {
+    "platform": "Windows-11-10.0.26100-SP0",
+    "python": "3.12.5",
+    "cpuLogical": 16,
+    "mysqlBufferPoolMiB": 64,
+    "http": "uvicorn + a2wsgi workers=16; fixture identity, no OIDC cost"
+  },
+  "results": {
+    "reactions": {
+      "stages": [
+        {
+          "requests": 406,
+          "statusCounts": {
+            "200": 202,
+            "503": 32,
+            "0": 172
+          },
+          "p50Ms": 4477.653,
+          "p95Ms": 5058.781,
+          "p99Ms": 5072.302,
+          "successP99Ms": 4981.698,
+          "successRate": 0.4975369458128079,
+          "incorrectSuccesses": 0,
+          "offeredRps": 200,
+          "offeredSeconds": 4,
+          "offeredRequests": 800,
+          "clientDropped": 394,
+          "elapsedSeconds": 8.986210300005041,
+          "achievedSuccessRps": 22.478702236457647,
+          "offeredSuccessRate": 0.2525,
+          "sqlStatements": 12458,
+          "selectStatements": 6717,
+          "originLoads": 0,
+          "peakSQLPerSecond": 1837,
+          "peakOriginLoadsPerSecond": 0,
+          "cacheEvents": {
+            "projection:success": 205.0,
+            "reaction:changed": 276.0
+          },
+          "cacheHitRate": null,
+          "loaderMisses": 0,
+          "coalesced": 0,
+          "coalescingRate": null,
+          "redisClientCalls": 410,
+          "redisClientQps": 45.62546238204218,
+          "processResources": {
+            "cpuSeconds": 11.359375,
+            "handlesOrFDs": 430,
+            "pid": 28176,
+            "rssBytes": 168161280
+          },
+          "experiment": "reactions_http",
+          "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+        },
+        {
+          "requests": 384,
+          "statusCounts": {
+            "200": 188,
+            "503": 34,
+            "0": 162
+          },
+          "p50Ms": 4968.891,
+          "p95Ms": 5112.797,
+          "p99Ms": 5145.098,
+          "successP99Ms": 5019.618,
+          "successRate": 0.4895833333333333,
+          "incorrectSuccesses": 0,
+          "offeredRps": 500,
+          "offeredSeconds": 4,
+          "offeredRequests": 2000,
+          "clientDropped": 1616,
+          "elapsedSeconds": 8.95212130001164,
+          "achievedSuccessRps": 21.00022930464798,
+          "offeredSuccessRate": 0.094,
+          "sqlStatements": 11165,
+          "selectStatements": 6046,
+          "originLoads": 0,
+          "peakSQLPerSecond": 1309,
+          "peakOriginLoadsPerSecond": 0,
+          "cacheEvents": {
+            "projection:success": 191.0,
+            "reaction:changed": 209.0,
+            "reaction:unchanged": 52.0
+          },
+          "cacheHitRate": null,
+          "loaderMisses": 0,
+          "coalesced": 0,
+          "coalescingRate": null,
+          "redisClientCalls": 382,
+          "redisClientQps": 42.67145039684653,
+          "processResources": {
+            "cpuSeconds": 20.859375,
+            "handlesOrFDs": 427,
+            "pid": 28176,
+            "rssBytes": 172109824
+          },
+          "experiment": "reactions_http",
+          "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+        },
+        {
+          "requests": 385,
+          "statusCounts": {
+            "200": 214,
+            "503": 28,
+            "0": 143
+          },
+          "p50Ms": 4904.341,
+          "p95Ms": 5409.388,
+          "p99Ms": 5513.118,
+          "successP99Ms": 5134.642,
+          "successRate": 0.5558441558441558,
+          "incorrectSuccesses": 0,
+          "offeredRps": 1000,
+          "offeredSeconds": 4,
+          "offeredRequests": 4000,
+          "clientDropped": 3615,
+          "elapsedSeconds": 8.824551800003974,
+          "achievedSuccessRps": 24.249198360085323,
+          "offeredSuccessRate": 0.0535,
+          "sqlStatements": 11275,
+          "selectStatements": 6028,
+          "originLoads": 0,
+          "peakSQLPerSecond": 1347,
+          "peakOriginLoadsPerSecond": 0,
+          "cacheEvents": {
+            "projection:success": 194.0,
+            "reaction:changed": 215.0,
+            "reaction:unchanged": 49.0
+          },
+          "cacheHitRate": null,
+          "loaderMisses": 0,
+          "coalesced": 0,
+          "coalescingRate": null,
+          "redisClientCalls": 388,
+          "redisClientQps": 43.96823870418272,
+          "processResources": {
+            "cpuSeconds": 29.953125,
+            "handlesOrFDs": 427,
+            "pid": 28176,
+            "rssBytes": 171560960
+          },
+          "experiment": "reactions_http",
+          "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+        },
+        {
+          "requests": 384,
+          "statusCounts": {
+            "200": 215,
+            "503": 50,
+            "0": 119
+          },
+          "p50Ms": 4823.287,
+          "p95Ms": 5514.233,
+          "p99Ms": 5561.644,
+          "successP99Ms": 5279.538,
+          "successRate": 0.5598958333333334,
+          "incorrectSuccesses": 0,
+          "offeredRps": 2000,
+          "offeredSeconds": 4,
+          "offeredRequests": 8000,
+          "clientDropped": 7616,
+          "elapsedSeconds": 8.764185999985784,
+          "achievedSuccessRps": 24.529588662316762,
+          "offeredSuccessRate": 0.026875,
+          "sqlStatements": 10805,
+          "selectStatements": 5828,
+          "originLoads": 0,
+          "peakSQLPerSecond": 1283,
+          "peakOriginLoadsPerSecond": 0,
+          "cacheEvents": {
+            "projection:success": 186.0,
+            "reaction:changed": 203.0,
+            "reaction:unchanged": 41.0
+          },
+          "cacheHitRate": null,
+          "loaderMisses": 0,
+          "coalesced": 0,
+          "coalescingRate": null,
+          "redisClientCalls": 372,
+          "redisClientQps": 42.44547069181364,
+          "processResources": {
+            "cpuSeconds": 39.4375,
+            "handlesOrFDs": 424,
+            "pid": 28176,
+            "rssBytes": 172363776
+          },
+          "experiment": "reactions_http",
+          "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+        }
+      ],
+      "convergenceSecondsAfterProducerStop": 4.437999999994645,
+      "stateCorrect": true,
+      "serverQuiescent": true,
+      "finalState": {
+        "dislikes": 91,
+        "expectedDislikes": 91,
+        "expectedLikes": 202,
+        "flaskActive": 1,
+        "httpActive": 1,
+        "likes": 202,
+        "pending": 0
+      }
+    },
+    "stream": [
+      {
+        "concurrentViewers": 32,
+        "requests": 192,
+        "elapsedSeconds": 3.0939419000060298,
+        "statusCounts": {
+          "206": 192
+        },
+        "ttfbP95Ms": 1254.587,
+        "ttfbP99Ms": 1423.444,
+        "successTtfbP99Ms": 1423.444,
+        "egressMiBPerSecond": 1.615982465399643,
+        "experiment": "playurl",
+        "arm": "uncached",
+        "seed": 0,
+        "resolutions": 256,
+        "resourcesBefore": {
+          "activeUpstream": 0,
+          "cpuSeconds": 0.8125,
+          "handlesOrFDs": 312,
+          "pid": 29580,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 100241408
+        },
+        "resourcesAfter": {
+          "activeUpstream": 0,
+          "cpuSeconds": 4.421875,
+          "handlesOrFDs": 347,
+          "pid": 29580,
+          "proxySlotsAvailable": 32,
+          "resolutions": 257,
+          "rssBytes": 111505408
+        },
+        "peakRssBytes": 114982912,
+        "peakActiveUpstream": 12,
+        "connectionSlotsRecovered": true,
+        "scope": "production proxy over HTTP, real MySQL auth; controlled 20ms resolver, 2ms/4KiB upstream"
+      },
+      {
+        "concurrentViewers": 16,
+        "requests": 96,
+        "elapsedSeconds": 1.6181099000095855,
+        "statusCounts": {
+          "206": 96
+        },
+        "ttfbP95Ms": 660.836,
+        "ttfbP99Ms": 802.256,
+        "successTtfbP99Ms": 802.256,
+        "egressMiBPerSecond": 1.5450124864727608,
+        "experiment": "proxy_capacity",
+        "arm": "cached_coalesced",
+        "seed": 0,
+        "resolutions": 0,
+        "resourcesBefore": {
+          "activeUpstream": 0,
+          "cpuSeconds": 0.75,
+          "handlesOrFDs": 312,
+          "pid": 29464,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 100388864
+        },
+        "resourcesAfter": {
+          "activeUpstream": 0,
+          "cpuSeconds": 2.640625,
+          "handlesOrFDs": 338,
+          "pid": 29464,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 109690880
+        },
+        "peakRssBytes": 110174208,
+        "peakActiveUpstream": 7,
+        "connectionSlotsRecovered": true,
+        "scope": "production proxy over HTTP, real MySQL auth; controlled 20ms resolver, 2ms/4KiB upstream"
+      },
+      {
+        "concurrentViewers": 32,
+        "requests": 192,
+        "elapsedSeconds": 3.9762315999832936,
+        "statusCounts": {
+          "206": 192
+        },
+        "ttfbP95Ms": 1250.707,
+        "ttfbP99Ms": 1401.737,
+        "successTtfbP99Ms": 1401.737,
+        "egressMiBPerSecond": 1.2574106245209677,
+        "experiment": "proxy_capacity",
+        "arm": "cached_coalesced",
+        "seed": 0,
+        "resolutions": 0,
+        "resourcesBefore": {
+          "activeUpstream": 0,
+          "cpuSeconds": 2.640625,
+          "handlesOrFDs": 338,
+          "pid": 29464,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 109690880
+        },
+        "resourcesAfter": {
+          "activeUpstream": 0,
+          "cpuSeconds": 7.125,
+          "handlesOrFDs": 332,
+          "pid": 29464,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 112742400
+        },
+        "peakRssBytes": 125341696,
+        "peakActiveUpstream": 12,
+        "connectionSlotsRecovered": true,
+        "scope": "production proxy over HTTP, real MySQL auth; controlled 20ms resolver, 2ms/4KiB upstream"
+      },
+      {
+        "concurrentViewers": 64,
+        "requests": 384,
+        "elapsedSeconds": 9.686923999979626,
+        "statusCounts": {
+          "206": 384
+        },
+        "ttfbP95Ms": 3197.567,
+        "ttfbP99Ms": 4205.232,
+        "successTtfbP99Ms": 4205.232,
+        "egressMiBPerSecond": 1.0322690380115536,
+        "experiment": "proxy_capacity",
+        "arm": "cached_coalesced",
+        "seed": 0,
+        "resolutions": 0,
+        "resourcesBefore": {
+          "activeUpstream": 0,
+          "cpuSeconds": 7.140625,
+          "handlesOrFDs": 332,
+          "pid": 29464,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 112742400
+        },
+        "resourcesAfter": {
+          "activeUpstream": 0,
+          "cpuSeconds": 18.25,
+          "handlesOrFDs": 332,
+          "pid": 29464,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 114524160
+        },
+        "peakRssBytes": 128442368,
+        "peakActiveUpstream": 11,
+        "connectionSlotsRecovered": true,
+        "scope": "production proxy over HTTP, real MySQL auth; controlled 20ms resolver, 2ms/4KiB upstream"
+      },
+      {
+        "concurrentViewers": 128,
+        "requests": 696,
+        "elapsedSeconds": 19.168713999999454,
+        "statusCounts": {
+          "206": 617,
+          "500": 79
+        },
+        "ttfbP95Ms": 4888.799,
+        "ttfbP99Ms": 6784.786,
+        "successTtfbP99Ms": 6784.786,
+        "egressMiBPerSecond": 0.8477084194327288,
+        "experiment": "proxy_capacity",
+        "arm": "cached_coalesced",
+        "seed": 0,
+        "resolutions": 0,
+        "resourcesBefore": {
+          "activeUpstream": 0,
+          "cpuSeconds": 18.265625,
+          "handlesOrFDs": 332,
+          "pid": 29464,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 114524160
+        },
+        "resourcesAfter": {
+          "activeUpstream": 0,
+          "cpuSeconds": 40.21875,
+          "errors": {
+            "TimeoutError": 112
+          },
+          "handlesOrFDs": 329,
+          "pid": 29464,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 115367936
+        },
+        "peakRssBytes": 133607424,
+        "peakActiveUpstream": 12,
+        "connectionSlotsRecovered": true,
+        "scope": "production proxy over HTTP, real MySQL auth; controlled 20ms resolver, 2ms/4KiB upstream"
+      },
+      {
+        "concurrentViewers": 256,
+        "requests": 1068,
+        "elapsedSeconds": 26.915227199991932,
+        "statusCounts": {
+          "500": 361,
+          "206": 675,
+          "503": 31,
+          "410": 1
+        },
+        "ttfbP95Ms": 5595.508,
+        "ttfbP99Ms": 9485.274,
+        "successTtfbP99Ms": 9279.926,
+        "egressMiBPerSecond": 0.6958751978638449,
+        "experiment": "proxy_capacity",
+        "arm": "cached_coalesced",
+        "seed": 0,
+        "resolutions": 1,
+        "resourcesBefore": {
+          "activeUpstream": 0,
+          "cpuSeconds": 40.21875,
+          "errors": {
+            "TimeoutError": 112
+          },
+          "handlesOrFDs": 329,
+          "pid": 29464,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 115367936
+        },
+        "resourcesAfter": {
+          "activeUpstream": 0,
+          "cpuSeconds": 71.0,
+          "errors": {
+            "TimeoutError": 572
+          },
+          "handlesOrFDs": 327,
+          "pid": 29464,
+          "proxySlotsAvailable": 32,
+          "resolutions": 2,
+          "rssBytes": 117698560
+        },
+        "peakRssBytes": 138870784,
+        "peakActiveUpstream": 15,
+        "connectionSlotsRecovered": true,
+        "scope": "production proxy over HTTP, real MySQL auth; controlled 20ms resolver, 2ms/4KiB upstream"
+      },
+      {
+        "concurrentViewers": 32,
+        "requests": 192,
+        "elapsedSeconds": 2.957975700002862,
+        "statusCounts": {
+          "206": 192
+        },
+        "ttfbP95Ms": 1178.929,
+        "ttfbP99Ms": 1335.684,
+        "successTtfbP99Ms": 1335.684,
+        "egressMiBPerSecond": 1.6903451911370204,
+        "experiment": "playurl",
+        "arm": "cached_coalesced",
+        "seed": 1,
+        "resolutions": 0,
+        "resourcesBefore": {
+          "activeUpstream": 0,
+          "cpuSeconds": 0.8125,
+          "handlesOrFDs": 312,
+          "pid": 14152,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 100454400
+        },
+        "resourcesAfter": {
+          "activeUpstream": 0,
+          "cpuSeconds": 4.484375,
+          "handlesOrFDs": 335,
+          "pid": 14152,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 111046656
+        },
+        "peakRssBytes": 120139776,
+        "peakActiveUpstream": 14,
+        "connectionSlotsRecovered": true,
+        "scope": "production proxy over HTTP, real MySQL auth; controlled 20ms resolver, 2ms/4KiB upstream"
+      },
+      {
+        "concurrentViewers": 32,
+        "requests": 192,
+        "elapsedSeconds": 3.26409959999728,
+        "statusCounts": {
+          "206": 192
+        },
+        "ttfbP95Ms": 1323.966,
+        "ttfbP99Ms": 1426.551,
+        "successTtfbP99Ms": 1426.551,
+        "egressMiBPerSecond": 1.531591615074848,
+        "experiment": "playurl",
+        "arm": "uncached",
+        "seed": 1,
+        "resolutions": 256,
+        "resourcesBefore": {
+          "activeUpstream": 0,
+          "cpuSeconds": 0.8125,
+          "handlesOrFDs": 312,
+          "pid": 16320,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 100655104
+        },
+        "resourcesAfter": {
+          "activeUpstream": 0,
+          "cpuSeconds": 4.8125,
+          "handlesOrFDs": 332,
+          "pid": 16320,
+          "proxySlotsAvailable": 32,
+          "resolutions": 257,
+          "rssBytes": 112058368
+        },
+        "peakRssBytes": 114962432,
+        "peakActiveUpstream": 13,
+        "connectionSlotsRecovered": true,
+        "scope": "production proxy over HTTP, real MySQL auth; controlled 20ms resolver, 2ms/4KiB upstream"
+      },
+      {
+        "concurrentViewers": 32,
+        "requests": 192,
+        "elapsedSeconds": 3.0609062000003178,
+        "statusCounts": {
+          "206": 192
+        },
+        "ttfbP95Ms": 1235.041,
+        "ttfbP99Ms": 1386.792,
+        "successTtfbP99Ms": 1386.792,
+        "egressMiBPerSecond": 1.6335031762814165,
+        "experiment": "playurl",
+        "arm": "uncached",
+        "seed": 2,
+        "resolutions": 256,
+        "resourcesBefore": {
+          "activeUpstream": 0,
+          "cpuSeconds": 0.765625,
+          "handlesOrFDs": 312,
+          "pid": 28720,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 100540416
+        },
+        "resourcesAfter": {
+          "activeUpstream": 0,
+          "cpuSeconds": 4.359375,
+          "handlesOrFDs": 336,
+          "pid": 28720,
+          "proxySlotsAvailable": 32,
+          "resolutions": 257,
+          "rssBytes": 111575040
+        },
+        "peakRssBytes": 120508416,
+        "peakActiveUpstream": 10,
+        "connectionSlotsRecovered": true,
+        "scope": "production proxy over HTTP, real MySQL auth; controlled 20ms resolver, 2ms/4KiB upstream"
+      },
+      {
+        "concurrentViewers": 32,
+        "requests": 192,
+        "elapsedSeconds": 3.0860526000033133,
+        "statusCounts": {
+          "206": 192
+        },
+        "ttfbP95Ms": 1221.535,
+        "ttfbP99Ms": 1493.612,
+        "successTtfbP99Ms": 1493.612,
+        "egressMiBPerSecond": 1.6201136232641116,
+        "experiment": "playurl",
+        "arm": "cached_coalesced",
+        "seed": 2,
+        "resolutions": 0,
+        "resourcesBefore": {
+          "activeUpstream": 0,
+          "cpuSeconds": 0.734375,
+          "handlesOrFDs": 312,
+          "pid": 15304,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 100397056
+        },
+        "resourcesAfter": {
+          "activeUpstream": 0,
+          "cpuSeconds": 4.1875,
+          "handlesOrFDs": 332,
+          "pid": 15304,
+          "proxySlotsAvailable": 32,
+          "resolutions": 1,
+          "rssBytes": 111341568
+        },
+        "peakRssBytes": 114372608,
+        "peakActiveUpstream": 12,
+        "connectionSlotsRecovered": true,
+        "scope": "production proxy over HTTP, real MySQL auth; controlled 20ms resolver, 2ms/4KiB upstream"
+      }
+    ],
+    "kafka": {
+      "stages": [
+        {
+          "offeredRps": 2,
+          "produced": 8,
+          "elapsedSeconds": 3.5310000000172295,
+          "achievedProducerRps": 2.2656471254491546,
+          "lagAtEnd": 0
+        },
+        {
+          "offeredRps": 10,
+          "produced": 40,
+          "elapsedSeconds": 3.9219999999913853,
+          "achievedProducerRps": 10.198878123428827,
+          "lagAtEnd": 19
+        },
+        {
+          "offeredRps": 40,
+          "produced": 160,
+          "elapsedSeconds": 3.9839999999967404,
+          "achievedProducerRps": 40.16064257031398,
+          "lagAtEnd": 165
+        }
+      ],
+      "peakLag": 166,
+      "recoverySeconds": 30.812999999994645,
+      "remainingLag": 0,
+      "lagSampleErrors": [],
+      "uniqueProcessed": 208,
+      "expected": 208,
+      "consumerThroughputPerSecond": 4.923076923076923,
+      "scope": "real Kafka + MySQL JobProcessor; controlled 20ms handler; excludes real AMEM cost",
+      "group": "isolated per-run group",
+      "partitions": 3,
+      "workerConcurrency": 2
+    },
+    "uploads": {
+      "stages": [
+        {
+          "concurrency": 1,
+          "requests": 4,
+          "uploadSuccessRate": 1.0,
+          "uploadP95Ms": 109.0,
+          "confirmationP95Ms": 31.0,
+          "readyP95Ms": 641.0
+        },
+        {
+          "concurrency": 4,
+          "requests": 8,
+          "uploadSuccessRate": 1.0,
+          "uploadP95Ms": 109.0,
+          "confirmationP95Ms": 63.0,
+          "readyP95Ms": 828.0
+        },
+        {
+          "concurrency": 8,
+          "requests": 16,
+          "uploadSuccessRate": 1.0,
+          "uploadP95Ms": 172.0,
+          "confirmationP95Ms": 156.0,
+          "readyP95Ms": 1609.0
+        }
+      ],
+      "stagingResidualObjects": 0,
+      "scope": "real MinIO POST and AudioWorker; valid silence WAVs; 15-second fixture signatures",
+      "sizesBytes": [
+        65536,
+        1048576,
+        8388608,
+        33554432
+      ]
+    },
+    "amem": {
+      "queries": 100,
+      "ndcgAt8Control": 0.3113997889744443,
+      "ndcgAt8AmemProfile": 1.0,
+      "CTR": null,
+      "completionRate": null,
+      "scope": "controlled synthetic L3 -> production projector and ranking; not an LLM/user outcome claim",
+      "unmeasuredReason": "No randomized user outcomes; AMEM memory extraction quality is not evaluated"
+    },
+    "cache": [
+      {
+        "requests": 240,
+        "statusCounts": {
+          "200": 240
+        },
+        "p50Ms": 8.942,
+        "p95Ms": 29.601,
+        "p99Ms": 36.34,
+        "successP99Ms": 36.34,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 4,
+        "offeredRequests": 240,
+        "clientDropped": 0,
+        "elapsedSeconds": 4.007917399983853,
+        "achievedSuccessRps": 59.88023802690444,
+        "sqlStatements": 27,
+        "selectStatements": 27,
+        "originLoads": 27,
+        "peakSQLPerSecond": 7,
+        "peakOriginLoadsPerSecond": 7,
+        "cacheEvents": {
+          "cache:coalesced": 2.0,
+          "cache:miss": 27.0,
+          "cache:redis_hit": 211.0
+        },
+        "cacheHitRate": 0.8791666666666667,
+        "loaderMisses": 27.0,
+        "coalesced": 2.0,
+        "coalescingRate": 0.008333333333333333,
+        "redisClientCalls": 321,
+        "redisClientQps": 80.09147094730376,
+        "processResources": {
+          "cpuSeconds": 2.421875,
+          "handlesOrFDs": 360,
+          "pid": 15864,
+          "rssBytes": 139849728
+        },
+        "experiment": "tiers",
+        "arm": "redis",
+        "seed": 0,
+        "pattern": "hot",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 240,
+        "statusCounts": {
+          "200": 240
+        },
+        "p50Ms": 14.162,
+        "p95Ms": 46.533,
+        "p99Ms": 61.915,
+        "successP99Ms": 61.915,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 4,
+        "offeredRequests": 240,
+        "clientDropped": 0,
+        "elapsedSeconds": 4.0030825000139885,
+        "achievedSuccessRps": 59.952787180034306,
+        "sqlStatements": 211,
+        "selectStatements": 211,
+        "originLoads": 211,
+        "peakSQLPerSecond": 54,
+        "peakOriginLoadsPerSecond": 54,
+        "cacheEvents": {
+          "cache:coalesced": 0.0,
+          "cache:miss": 211.0,
+          "cache:redis_hit": 29.0
+        },
+        "cacheHitRate": 0.12083333333333333,
+        "loaderMisses": 211.0,
+        "coalesced": 0.0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 873,
+        "redisClientQps": 218.08194060375956,
+        "processResources": {
+          "cpuSeconds": 3.8125,
+          "handlesOrFDs": 377,
+          "pid": 15864,
+          "rssBytes": 141168640
+        },
+        "experiment": "tiers",
+        "arm": "redis",
+        "seed": 0,
+        "pattern": "uniform",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 240,
+        "statusCounts": {
+          "200": 240
+        },
+        "p50Ms": 8.75,
+        "p95Ms": 31.844,
+        "p99Ms": 36.008,
+        "successP99Ms": 36.008,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 4,
+        "offeredRequests": 240,
+        "clientDropped": 0,
+        "elapsedSeconds": 3.9930369000067003,
+        "achievedSuccessRps": 60.1042312551769,
+        "sqlStatements": 27,
+        "selectStatements": 27,
+        "originLoads": 27,
+        "peakSQLPerSecond": 7,
+        "peakOriginLoadsPerSecond": 7,
+        "cacheEvents": {
+          "cache:local_hit": 210.0,
+          "cache:miss": 27.0,
+          "cache:redis_hit": 3.0
+        },
+        "cacheHitRate": 0.8875,
+        "loaderMisses": 27.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 111,
+        "redisClientQps": 27.798390743600127,
+        "processResources": {
+          "cpuSeconds": 2.046875,
+          "handlesOrFDs": 351,
+          "pid": 23736,
+          "rssBytes": 139567104
+        },
+        "experiment": "tiers",
+        "arm": "local_redis",
+        "seed": 0,
+        "pattern": "hot",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 240,
+        "statusCounts": {
+          "200": 240
+        },
+        "p50Ms": 14.369,
+        "p95Ms": 44.122,
+        "p99Ms": 54.402,
+        "successP99Ms": 54.402,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 4,
+        "offeredRequests": 240,
+        "clientDropped": 0,
+        "elapsedSeconds": 3.9948245999985375,
+        "achievedSuccessRps": 60.077299959725224,
+        "sqlStatements": 211,
+        "selectStatements": 211,
+        "originLoads": 211,
+        "peakSQLPerSecond": 54,
+        "peakOriginLoadsPerSecond": 54,
+        "cacheEvents": {
+          "cache:local_hit": 4.0,
+          "cache:miss": 211.0,
+          "cache:redis_hit": 25.0
+        },
+        "cacheHitRate": 0.12083333333333333,
+        "loaderMisses": 211.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 869,
+        "redisClientQps": 217.53145307063497,
+        "processResources": {
+          "cpuSeconds": 3.59375,
+          "handlesOrFDs": 380,
+          "pid": 23736,
+          "rssBytes": 141643776
+        },
+        "experiment": "tiers",
+        "arm": "local_redis",
+        "seed": 0,
+        "pattern": "uniform",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 240,
+        "statusCounts": {
+          "200": 240
+        },
+        "p50Ms": 8.722,
+        "p95Ms": 32.669,
+        "p99Ms": 37.334,
+        "successP99Ms": 37.334,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 4,
+        "offeredRequests": 240,
+        "clientDropped": 0,
+        "elapsedSeconds": 4.01834399998188,
+        "achievedSuccessRps": 59.725165691402374,
+        "sqlStatements": 24,
+        "selectStatements": 24,
+        "originLoads": 24,
+        "peakSQLPerSecond": 8,
+        "peakOriginLoadsPerSecond": 8,
+        "cacheEvents": {
+          "cache:local_hit": 214.0,
+          "cache:miss": 24.0,
+          "cache:redis_hit": 2.0
+        },
+        "cacheHitRate": 0.9,
+        "loaderMisses": 24.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 98,
+        "redisClientQps": 24.388155917074773,
+        "processResources": {
+          "cpuSeconds": 2.375,
+          "handlesOrFDs": 359,
+          "pid": 3716,
+          "rssBytes": 139784192
+        },
+        "experiment": "tiers",
+        "arm": "local_redis",
+        "seed": 1,
+        "pattern": "hot",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 240,
+        "statusCounts": {
+          "200": 240
+        },
+        "p50Ms": 15.805,
+        "p95Ms": 48.795,
+        "p99Ms": 55.674,
+        "successP99Ms": 55.674,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 4,
+        "offeredRequests": 240,
+        "clientDropped": 0,
+        "elapsedSeconds": 4.006708000000799,
+        "achievedSuccessRps": 59.899065581856256,
+        "sqlStatements": 212,
+        "selectStatements": 212,
+        "originLoads": 212,
+        "peakSQLPerSecond": 56,
+        "peakOriginLoadsPerSecond": 56,
+        "cacheEvents": {
+          "cache:local_hit": 4.0,
+          "cache:miss": 212.0,
+          "cache:redis_hit": 24.0
+        },
+        "cacheHitRate": 0.11666666666666667,
+        "loaderMisses": 212.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 872,
+        "redisClientQps": 217.6350260612518,
+        "processResources": {
+          "cpuSeconds": 3.953125,
+          "handlesOrFDs": 377,
+          "pid": 3716,
+          "rssBytes": 142311424
+        },
+        "experiment": "tiers",
+        "arm": "local_redis",
+        "seed": 1,
+        "pattern": "uniform",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 240,
+        "statusCounts": {
+          "200": 240
+        },
+        "p50Ms": 6.783,
+        "p95Ms": 31.176,
+        "p99Ms": 53.611,
+        "successP99Ms": 53.611,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 4,
+        "offeredRequests": 240,
+        "clientDropped": 0,
+        "elapsedSeconds": 4.012779499986209,
+        "achievedSuccessRps": 59.80791491959444,
+        "sqlStatements": 24,
+        "selectStatements": 24,
+        "originLoads": 24,
+        "peakSQLPerSecond": 8,
+        "peakOriginLoadsPerSecond": 8,
+        "cacheEvents": {
+          "cache:miss": 24.0,
+          "cache:redis_hit": 216.0
+        },
+        "cacheHitRate": 0.9,
+        "loaderMisses": 24.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 312,
+        "redisClientQps": 77.75159337837334,
+        "processResources": {
+          "cpuSeconds": 2.25,
+          "handlesOrFDs": 351,
+          "pid": 29252,
+          "rssBytes": 139583488
+        },
+        "experiment": "tiers",
+        "arm": "redis",
+        "seed": 1,
+        "pattern": "hot",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 240,
+        "statusCounts": {
+          "200": 240
+        },
+        "p50Ms": 13.455,
+        "p95Ms": 46.875,
+        "p99Ms": 55.778,
+        "successP99Ms": 55.778,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 4,
+        "offeredRequests": 240,
+        "clientDropped": 0,
+        "elapsedSeconds": 3.9898265000083484,
+        "achievedSuccessRps": 60.152670484948096,
+        "sqlStatements": 212,
+        "selectStatements": 212,
+        "originLoads": 212,
+        "peakSQLPerSecond": 56,
+        "peakOriginLoadsPerSecond": 56,
+        "cacheEvents": {
+          "cache:miss": 212.0,
+          "cache:redis_hit": 28.0
+        },
+        "cacheHitRate": 0.11666666666666667,
+        "loaderMisses": 212.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 876,
+        "redisClientQps": 219.55841939446915,
+        "processResources": {
+          "cpuSeconds": 3.90625,
+          "handlesOrFDs": 366,
+          "pid": 29252,
+          "rssBytes": 140541952
+        },
+        "experiment": "tiers",
+        "arm": "redis",
+        "seed": 1,
+        "pattern": "uniform",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 240,
+        "statusCounts": {
+          "200": 240
+        },
+        "p50Ms": 7.732,
+        "p95Ms": 31.09,
+        "p99Ms": 41.861,
+        "successP99Ms": 41.861,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 4,
+        "offeredRequests": 240,
+        "clientDropped": 0,
+        "elapsedSeconds": 3.9924565000110306,
+        "achievedSuccessRps": 60.11151286770198,
+        "sqlStatements": 32,
+        "selectStatements": 32,
+        "originLoads": 32,
+        "peakSQLPerSecond": 11,
+        "peakOriginLoadsPerSecond": 11,
+        "cacheEvents": {
+          "cache:coalesced": 1.0,
+          "cache:miss": 32.0,
+          "cache:redis_hit": 207.0
+        },
+        "cacheHitRate": 0.8625,
+        "loaderMisses": 32.0,
+        "coalesced": 1.0,
+        "coalescingRate": 0.004166666666666667,
+        "redisClientCalls": 336,
+        "redisClientQps": 84.1587128122928,
+        "processResources": {
+          "cpuSeconds": 2.796875,
+          "handlesOrFDs": 352,
+          "pid": 28084,
+          "rssBytes": 139317248
+        },
+        "experiment": "tiers",
+        "arm": "redis",
+        "seed": 2,
+        "pattern": "hot",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 240,
+        "statusCounts": {
+          "200": 240
+        },
+        "p50Ms": 14.665,
+        "p95Ms": 48.079,
+        "p99Ms": 63.396,
+        "successP99Ms": 63.396,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 4,
+        "offeredRequests": 240,
+        "clientDropped": 0,
+        "elapsedSeconds": 4.017812100006267,
+        "achievedSuccessRps": 59.73319570830053,
+        "sqlStatements": 208,
+        "selectStatements": 208,
+        "originLoads": 208,
+        "peakSQLPerSecond": 55,
+        "peakOriginLoadsPerSecond": 55,
+        "cacheEvents": {
+          "cache:coalesced": 1.0,
+          "cache:miss": 208.0,
+          "cache:redis_hit": 31.0
+        },
+        "cacheHitRate": 0.12916666666666668,
+        "loaderMisses": 208.0,
+        "coalesced": 1.0,
+        "coalescingRate": 0.004166666666666667,
+        "redisClientCalls": 864,
+        "redisClientQps": 215.04241076845088,
+        "processResources": {
+          "cpuSeconds": 4.375,
+          "handlesOrFDs": 367,
+          "pid": 28084,
+          "rssBytes": 140349440
+        },
+        "experiment": "tiers",
+        "arm": "redis",
+        "seed": 2,
+        "pattern": "uniform",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 240,
+        "statusCounts": {
+          "200": 240
+        },
+        "p50Ms": 4.907,
+        "p95Ms": 28.952,
+        "p99Ms": 38.838,
+        "successP99Ms": 38.838,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 4,
+        "offeredRequests": 240,
+        "clientDropped": 0,
+        "elapsedSeconds": 4.00103690000833,
+        "achievedSuccessRps": 59.98333063205505,
+        "sqlStatements": 32,
+        "selectStatements": 32,
+        "originLoads": 32,
+        "peakSQLPerSecond": 9,
+        "peakOriginLoadsPerSecond": 9,
+        "cacheEvents": {
+          "cache:local_hit": 206.0,
+          "cache:miss": 32.0,
+          "cache:redis_hit": 2.0
+        },
+        "cacheHitRate": 0.8666666666666667,
+        "loaderMisses": 32.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 130,
+        "redisClientQps": 32.49157737078839,
+        "processResources": {
+          "cpuSeconds": 2.03125,
+          "handlesOrFDs": 355,
+          "pid": 29432,
+          "rssBytes": 139280384
+        },
+        "experiment": "tiers",
+        "arm": "local_redis",
+        "seed": 2,
+        "pattern": "hot",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 240,
+        "statusCounts": {
+          "200": 240
+        },
+        "p50Ms": 12.91,
+        "p95Ms": 46.636,
+        "p99Ms": 68.707,
+        "successP99Ms": 68.707,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 4,
+        "offeredRequests": 240,
+        "clientDropped": 0,
+        "elapsedSeconds": 3.993436799995834,
+        "achievedSuccessRps": 60.09828924986033,
+        "sqlStatements": 208,
+        "selectStatements": 208,
+        "originLoads": 208,
+        "peakSQLPerSecond": 52,
+        "peakOriginLoadsPerSecond": 52,
+        "cacheEvents": {
+          "cache:local_hit": 3.0,
+          "cache:miss": 208.0,
+          "cache:redis_hit": 29.0
+        },
+        "cacheHitRate": 0.13333333333333333,
+        "loaderMisses": 208.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 861,
+        "redisClientQps": 215.60376265398722,
+        "processResources": {
+          "cpuSeconds": 3.5,
+          "handlesOrFDs": 365,
+          "pid": 29432,
+          "rssBytes": 141578240
+        },
+        "experiment": "tiers",
+        "arm": "local_redis",
+        "seed": 2,
+        "pattern": "uniform",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 320,
+        "statusCounts": {
+          "200": 320
+        },
+        "p50Ms": 49.583,
+        "p95Ms": 78.059,
+        "p99Ms": 87.346,
+        "successP99Ms": 87.346,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRequests": 320,
+        "clientDropped": 0,
+        "offeredRps": null,
+        "coldBursts": 10,
+        "concurrency": 32,
+        "elapsedSeconds": 1.0519028000126127,
+        "sqlStatements": 18,
+        "selectStatements": 18,
+        "originLoads": 18,
+        "peakSQLPerSecond": 16,
+        "peakOriginLoadsPerSecond": 16,
+        "cacheEvents": {
+          "cache:local_hit": 299.0,
+          "cache:miss": 18.0,
+          "cache:redis_hit": 4.0
+        },
+        "cacheHitRate": 0.9439252336448598,
+        "loaderMisses": 18.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 218,
+        "redisClientQps": 207.24348295050274,
+        "processResources": {
+          "cpuSeconds": 2.109375,
+          "handlesOrFDs": 390,
+          "pid": 27624,
+          "rssBytes": 142168064
+        },
+        "experiment": "singleflight",
+        "arm": "off",
+        "seed": 0,
+        "pattern": "stampede",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 320,
+        "statusCounts": {
+          "200": 320
+        },
+        "p50Ms": 52.032,
+        "p95Ms": 78.46,
+        "p99Ms": 83.46,
+        "successP99Ms": 83.46,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRequests": 320,
+        "clientDropped": 0,
+        "offeredRps": null,
+        "coldBursts": 10,
+        "concurrency": 32,
+        "elapsedSeconds": 1.0877123000100255,
+        "sqlStatements": 11,
+        "selectStatements": 11,
+        "originLoads": 11,
+        "peakSQLPerSecond": 9,
+        "peakOriginLoadsPerSecond": 9,
+        "cacheEvents": {
+          "cache:coalesced": 11.0,
+          "cache:local_hit": 298.0,
+          "cache:miss": 11.0,
+          "cache:redis_hit": 1.0
+        },
+        "cacheHitRate": 0.9314641744548287,
+        "loaderMisses": 11.0,
+        "coalesced": 11.0,
+        "coalescingRate": 0.03426791277258567,
+        "redisClientCalls": 216,
+        "redisClientQps": 198.58192280992787,
+        "processResources": {
+          "cpuSeconds": 2.140625,
+          "handlesOrFDs": 360,
+          "pid": 27724,
+          "rssBytes": 140328960
+        },
+        "experiment": "singleflight",
+        "arm": "on",
+        "seed": 0,
+        "pattern": "stampede",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 320,
+        "statusCounts": {
+          "200": 320
+        },
+        "p50Ms": 53.236,
+        "p95Ms": 77.073,
+        "p99Ms": 81.37,
+        "successP99Ms": 81.37,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRequests": 320,
+        "clientDropped": 0,
+        "offeredRps": null,
+        "coldBursts": 10,
+        "concurrency": 32,
+        "elapsedSeconds": 1.1025439999939408,
+        "sqlStatements": 11,
+        "selectStatements": 11,
+        "originLoads": 11,
+        "peakSQLPerSecond": 7,
+        "peakOriginLoadsPerSecond": 7,
+        "cacheEvents": {
+          "cache:coalesced": 10.0,
+          "cache:local_hit": 296.0,
+          "cache:miss": 11.0,
+          "cache:redis_hit": 4.0
+        },
+        "cacheHitRate": 0.9345794392523364,
+        "loaderMisses": 11.0,
+        "coalesced": 10.0,
+        "coalescingRate": 0.03115264797507788,
+        "redisClientCalls": 218,
+        "redisClientQps": 197.72453525772943,
+        "processResources": {
+          "cpuSeconds": 2.25,
+          "handlesOrFDs": 369,
+          "pid": 23520,
+          "rssBytes": 140075008
+        },
+        "experiment": "singleflight",
+        "arm": "on",
+        "seed": 1,
+        "pattern": "stampede",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 320,
+        "statusCounts": {
+          "200": 320
+        },
+        "p50Ms": 51.8,
+        "p95Ms": 74.494,
+        "p99Ms": 102.959,
+        "successP99Ms": 102.959,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRequests": 320,
+        "clientDropped": 0,
+        "offeredRps": null,
+        "coldBursts": 10,
+        "concurrency": 32,
+        "elapsedSeconds": 1.1175029000150971,
+        "sqlStatements": 20,
+        "selectStatements": 20,
+        "originLoads": 20,
+        "peakSQLPerSecond": 10,
+        "peakOriginLoadsPerSecond": 10,
+        "cacheEvents": {
+          "cache:local_hit": 294.0,
+          "cache:miss": 20.0,
+          "cache:redis_hit": 7.0
+        },
+        "cacheHitRate": 0.9376947040498442,
+        "loaderMisses": 20.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 227,
+        "redisClientQps": 203.1314639066559,
+        "processResources": {
+          "cpuSeconds": 2.3125,
+          "handlesOrFDs": 390,
+          "pid": 28692,
+          "rssBytes": 142217216
+        },
+        "experiment": "singleflight",
+        "arm": "off",
+        "seed": 1,
+        "pattern": "stampede",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 320,
+        "statusCounts": {
+          "200": 320
+        },
+        "p50Ms": 62.157,
+        "p95Ms": 98.593,
+        "p99Ms": 105.86,
+        "successP99Ms": 105.86,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRequests": 320,
+        "clientDropped": 0,
+        "offeredRps": null,
+        "coldBursts": 10,
+        "concurrency": 32,
+        "elapsedSeconds": 1.2330915000056848,
+        "sqlStatements": 18,
+        "selectStatements": 18,
+        "originLoads": 18,
+        "peakSQLPerSecond": 14,
+        "peakOriginLoadsPerSecond": 14,
+        "cacheEvents": {
+          "cache:local_hit": 301.0,
+          "cache:miss": 18.0,
+          "cache:redis_hit": 2.0
+        },
+        "cacheHitRate": 0.9439252336448598,
+        "loaderMisses": 18.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 216,
+        "redisClientQps": 175.1694825558397,
+        "processResources": {
+          "cpuSeconds": 2.0,
+          "handlesOrFDs": 396,
+          "pid": 12512,
+          "rssBytes": 142606336
+        },
+        "experiment": "singleflight",
+        "arm": "off",
+        "seed": 2,
+        "pattern": "stampede",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 320,
+        "statusCounts": {
+          "200": 320
+        },
+        "p50Ms": 50.78,
+        "p95Ms": 83.599,
+        "p99Ms": 93.94,
+        "successP99Ms": 93.94,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRequests": 320,
+        "clientDropped": 0,
+        "offeredRps": null,
+        "coldBursts": 10,
+        "concurrency": 32,
+        "elapsedSeconds": 1.0905101000098512,
+        "sqlStatements": 11,
+        "selectStatements": 11,
+        "originLoads": 11,
+        "peakSQLPerSecond": 6,
+        "peakOriginLoadsPerSecond": 6,
+        "cacheEvents": {
+          "cache:coalesced": 12.0,
+          "cache:local_hit": 296.0,
+          "cache:miss": 11.0,
+          "cache:redis_hit": 2.0
+        },
+        "cacheHitRate": 0.9283489096573209,
+        "loaderMisses": 11.0,
+        "coalesced": 12.0,
+        "coalescingRate": 0.037383177570093455,
+        "redisClientCalls": 218,
+        "redisClientQps": 199.90644744879546,
+        "processResources": {
+          "cpuSeconds": 2.265625,
+          "handlesOrFDs": 362,
+          "pid": 27416,
+          "rssBytes": 139853824
+        },
+        "experiment": "singleflight",
+        "arm": "on",
+        "seed": 2,
+        "pattern": "stampede",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 480,
+        "statusCounts": {
+          "200": 480
+        },
+        "p50Ms": 6.396,
+        "p95Ms": 28.844,
+        "p99Ms": 39.063,
+        "successP99Ms": 39.063,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 8,
+        "offeredRequests": 480,
+        "clientDropped": 0,
+        "elapsedSeconds": 7.996858600003179,
+        "achievedSuccessRps": 60.0232184816303,
+        "sqlStatements": 69,
+        "selectStatements": 69,
+        "originLoads": 69,
+        "peakSQLPerSecond": 12,
+        "peakOriginLoadsPerSecond": 12,
+        "cacheEvents": {
+          "cache:coalesced": 3.0,
+          "cache:local_hit": 185.0,
+          "cache:miss": 69.0,
+          "cache:redis_hit": 233.0
+        },
+        "cacheHitRate": 0.8708333333333333,
+        "loaderMisses": 69.0,
+        "coalesced": 3.0,
+        "coalescingRate": 0.00625,
+        "redisClientCalls": 502,
+        "redisClientQps": 62.774650035677816,
+        "processResources": {
+          "cpuSeconds": 3.203125,
+          "handlesOrFDs": 374,
+          "pid": 23268,
+          "rssBytes": 139771904
+        },
+        "experiment": "hotkey",
+        "arm": "soft_expiry",
+        "seed": 0,
+        "pattern": "hot",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 480,
+        "statusCounts": {
+          "200": 480
+        },
+        "p50Ms": 13.69,
+        "p95Ms": 44.729,
+        "p99Ms": 54.858,
+        "successP99Ms": 54.858,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 8,
+        "offeredRequests": 480,
+        "clientDropped": 0,
+        "elapsedSeconds": 7.9731502999784425,
+        "achievedSuccessRps": 60.20170430539289,
+        "sqlStatements": 474,
+        "selectStatements": 474,
+        "originLoads": 474,
+        "peakSQLPerSecond": 62,
+        "peakOriginLoadsPerSecond": 62,
+        "cacheEvents": {
+          "cache:coalesced": 0.0,
+          "cache:local_hit": 1.0,
+          "cache:miss": 474.0,
+          "cache:redis_hit": 6.0
+        },
+        "cacheHitRate": 0.014583333333333334,
+        "loaderMisses": 474.0,
+        "coalesced": 0.0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 1901,
+        "redisClientQps": 238.42520565618082,
+        "processResources": {
+          "cpuSeconds": 5.953125,
+          "handlesOrFDs": 386,
+          "pid": 23268,
+          "rssBytes": 142741504
+        },
+        "experiment": "hotkey",
+        "arm": "soft_expiry",
+        "seed": 0,
+        "pattern": "uniform",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 480,
+        "statusCounts": {
+          "200": 480
+        },
+        "p50Ms": 7.707,
+        "p95Ms": 34.029,
+        "p99Ms": 39.928,
+        "successP99Ms": 39.928,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 8,
+        "offeredRequests": 480,
+        "clientDropped": 0,
+        "elapsedSeconds": 7.994472499995027,
+        "achievedSuccessRps": 60.04049581335123,
+        "sqlStatements": 76,
+        "selectStatements": 76,
+        "originLoads": 76,
+        "peakSQLPerSecond": 11,
+        "peakOriginLoadsPerSecond": 11,
+        "cacheEvents": {
+          "cache:local_hit": 180.0,
+          "cache:miss": 60.0,
+          "cache:redis_hit": 241.0,
+          "hotkey:promoted": 1.0,
+          "hotkey:refreshed": 16.0
+        },
+        "cacheHitRate": 0.8770833333333333,
+        "loaderMisses": 60.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 903,
+        "redisClientQps": 112.95304349355905,
+        "processResources": {
+          "cpuSeconds": 3.625,
+          "handlesOrFDs": 397,
+          "pid": 28748,
+          "rssBytes": 140161024
+        },
+        "experiment": "hotkey",
+        "arm": "proactive",
+        "seed": 0,
+        "pattern": "hot",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 480,
+        "statusCounts": {
+          "200": 480
+        },
+        "p50Ms": 12.88,
+        "p95Ms": 44.932,
+        "p99Ms": 51.647,
+        "successP99Ms": 51.647,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 8,
+        "offeredRequests": 480,
+        "clientDropped": 0,
+        "elapsedSeconds": 7.996016099990811,
+        "achievedSuccessRps": 60.02904129994769,
+        "sqlStatements": 486,
+        "selectStatements": 486,
+        "originLoads": 486,
+        "peakSQLPerSecond": 62,
+        "peakOriginLoadsPerSecond": 62,
+        "cacheEvents": {
+          "cache:local_hit": 0.0,
+          "cache:miss": 473.0,
+          "cache:redis_hit": 8.0,
+          "hotkey:demoted": 1.0,
+          "hotkey:promoted": 0.0,
+          "hotkey:refreshed": 13.0
+        },
+        "cacheHitRate": 0.016666666666666666,
+        "loaderMisses": 473.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 2314,
+        "redisClientQps": 289.39411465200266,
+        "processResources": {
+          "cpuSeconds": 6.953125,
+          "handlesOrFDs": 420,
+          "pid": 28748,
+          "rssBytes": 143126528
+        },
+        "experiment": "hotkey",
+        "arm": "proactive",
+        "seed": 0,
+        "pattern": "uniform",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 480,
+        "statusCounts": {
+          "200": 480
+        },
+        "p50Ms": 9.405,
+        "p95Ms": 33.824,
+        "p99Ms": 46.89,
+        "successP99Ms": 46.89,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 8,
+        "offeredRequests": 480,
+        "clientDropped": 0,
+        "elapsedSeconds": 7.995734700001776,
+        "achievedSuccessRps": 60.031439215144815,
+        "sqlStatements": 65,
+        "selectStatements": 65,
+        "originLoads": 65,
+        "peakSQLPerSecond": 14,
+        "peakOriginLoadsPerSecond": 14,
+        "cacheEvents": {
+          "cache:coalesced": 1.0,
+          "cache:local_hit": 184.0,
+          "cache:miss": 50.0,
+          "cache:redis_hit": 247.0,
+          "hotkey:promoted": 1.0,
+          "hotkey:refreshed": 15.0
+        },
+        "cacheHitRate": 0.8979166666666667,
+        "loaderMisses": 50.0,
+        "coalesced": 1.0,
+        "coalescingRate": 0.0020833333333333333,
+        "redisClientCalls": 867,
+        "redisClientQps": 108.43281230926877,
+        "processResources": {
+          "cpuSeconds": 3.359375,
+          "handlesOrFDs": 382,
+          "pid": 17000,
+          "rssBytes": 140115968
+        },
+        "experiment": "hotkey",
+        "arm": "proactive",
+        "seed": 1,
+        "pattern": "hot",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 480,
+        "statusCounts": {
+          "200": 480
+        },
+        "p50Ms": 12.675,
+        "p95Ms": 43.871,
+        "p99Ms": 52.37,
+        "successP99Ms": 52.37,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 8,
+        "offeredRequests": 480,
+        "clientDropped": 0,
+        "elapsedSeconds": 8.01161040001898,
+        "achievedSuccessRps": 59.91167820386476,
+        "sqlStatements": 490,
+        "selectStatements": 490,
+        "originLoads": 490,
+        "peakSQLPerSecond": 64,
+        "peakOriginLoadsPerSecond": 64,
+        "cacheEvents": {
+          "cache:coalesced": 0.0,
+          "cache:local_hit": 0.0,
+          "cache:miss": 474.0,
+          "cache:redis_hit": 7.0,
+          "hotkey:demoted": 1.0,
+          "hotkey:promoted": 0.0,
+          "hotkey:refreshed": 16.0
+        },
+        "cacheHitRate": 0.014583333333333334,
+        "loaderMisses": 474.0,
+        "coalesced": 0.0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 2327,
+        "redisClientQps": 290.4534648857222,
+        "processResources": {
+          "cpuSeconds": 6.484375,
+          "handlesOrFDs": 405,
+          "pid": 17000,
+          "rssBytes": 143347712
+        },
+        "experiment": "hotkey",
+        "arm": "proactive",
+        "seed": 1,
+        "pattern": "uniform",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 480,
+        "statusCounts": {
+          "200": 480
+        },
+        "p50Ms": 11.065,
+        "p95Ms": 35.681,
+        "p99Ms": 45.656,
+        "successP99Ms": 45.656,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 8,
+        "offeredRequests": 480,
+        "clientDropped": 0,
+        "elapsedSeconds": 7.982937499997206,
+        "achievedSuccessRps": 60.12769619482168,
+        "sqlStatements": 59,
+        "selectStatements": 59,
+        "originLoads": 59,
+        "peakSQLPerSecond": 10,
+        "peakOriginLoadsPerSecond": 10,
+        "cacheEvents": {
+          "cache:coalesced": 1.0,
+          "cache:local_hit": 191.0,
+          "cache:miss": 59.0,
+          "cache:redis_hit": 240.0
+        },
+        "cacheHitRate": 0.8979166666666667,
+        "loaderMisses": 59.0,
+        "coalesced": 1.0,
+        "coalescingRate": 0.0020833333333333333,
+        "redisClientCalls": 466,
+        "redisClientQps": 58.3745018672842,
+        "processResources": {
+          "cpuSeconds": 3.75,
+          "handlesOrFDs": 369,
+          "pid": 2236,
+          "rssBytes": 139997184
+        },
+        "experiment": "hotkey",
+        "arm": "soft_expiry",
+        "seed": 1,
+        "pattern": "hot",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 480,
+        "statusCounts": {
+          "200": 480
+        },
+        "p50Ms": 15.405,
+        "p95Ms": 48.635,
+        "p99Ms": 60.658,
+        "successP99Ms": 60.658,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 8,
+        "offeredRequests": 480,
+        "clientDropped": 0,
+        "elapsedSeconds": 8.005394800013164,
+        "achievedSuccessRps": 59.95921424354593,
+        "sqlStatements": 474,
+        "selectStatements": 474,
+        "originLoads": 474,
+        "peakSQLPerSecond": 61,
+        "peakOriginLoadsPerSecond": 61,
+        "cacheEvents": {
+          "cache:coalesced": 0.0,
+          "cache:local_hit": 0.0,
+          "cache:miss": 474.0,
+          "cache:redis_hit": 7.0
+        },
+        "cacheHitRate": 0.014583333333333334,
+        "loaderMisses": 474.0,
+        "coalesced": 0.0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 1902,
+        "redisClientQps": 237.58978133056877,
+        "processResources": {
+          "cpuSeconds": 6.78125,
+          "handlesOrFDs": 394,
+          "pid": 2236,
+          "rssBytes": 142987264
+        },
+        "experiment": "hotkey",
+        "arm": "soft_expiry",
+        "seed": 1,
+        "pattern": "uniform",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 480,
+        "statusCounts": {
+          "200": 480
+        },
+        "p50Ms": 9.223,
+        "p95Ms": 36.141,
+        "p99Ms": 47.41,
+        "successP99Ms": 47.41,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 8,
+        "offeredRequests": 480,
+        "clientDropped": 0,
+        "elapsedSeconds": 8.004649100010283,
+        "achievedSuccessRps": 59.96460963688547,
+        "sqlStatements": 70,
+        "selectStatements": 70,
+        "originLoads": 70,
+        "peakSQLPerSecond": 11,
+        "peakOriginLoadsPerSecond": 11,
+        "cacheEvents": {
+          "cache:local_hit": 182.0,
+          "cache:miss": 70.0,
+          "cache:redis_hit": 238.0
+        },
+        "cacheHitRate": 0.875,
+        "loaderMisses": 70.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 508,
+        "redisClientQps": 63.46311920148347,
+        "processResources": {
+          "cpuSeconds": 4.125,
+          "handlesOrFDs": 367,
+          "pid": 24336,
+          "rssBytes": 139956224
+        },
+        "experiment": "hotkey",
+        "arm": "soft_expiry",
+        "seed": 2,
+        "pattern": "hot",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 480,
+        "statusCounts": {
+          "200": 480
+        },
+        "p50Ms": 14.876,
+        "p95Ms": 46.399,
+        "p99Ms": 55.707,
+        "successP99Ms": 55.707,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 8,
+        "offeredRequests": 480,
+        "clientDropped": 0,
+        "elapsedSeconds": 8.009359899995616,
+        "achievedSuccessRps": 59.92949744090258,
+        "sqlStatements": 476,
+        "selectStatements": 476,
+        "originLoads": 476,
+        "peakSQLPerSecond": 61,
+        "peakOriginLoadsPerSecond": 61,
+        "cacheEvents": {
+          "cache:local_hit": 0.0,
+          "cache:miss": 476.0,
+          "cache:redis_hit": 6.0
+        },
+        "cacheHitRate": 0.0125,
+        "loaderMisses": 476.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 1908,
+        "redisClientQps": 238.22128407552825,
+        "processResources": {
+          "cpuSeconds": 7.21875,
+          "handlesOrFDs": 397,
+          "pid": 24336,
+          "rssBytes": 143073280
+        },
+        "experiment": "hotkey",
+        "arm": "soft_expiry",
+        "seed": 2,
+        "pattern": "uniform",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 480,
+        "statusCounts": {
+          "200": 480
+        },
+        "p50Ms": 7.983,
+        "p95Ms": 30.283,
+        "p99Ms": 40.372,
+        "successP99Ms": 40.372,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 8,
+        "offeredRequests": 480,
+        "clientDropped": 0,
+        "elapsedSeconds": 7.981778999994276,
+        "achievedSuccessRps": 60.13662741071547,
+        "sqlStatements": 76,
+        "selectStatements": 76,
+        "originLoads": 76,
+        "peakSQLPerSecond": 13,
+        "peakOriginLoadsPerSecond": 13,
+        "cacheEvents": {
+          "cache:coalesced": 1.0,
+          "cache:local_hit": 195.0,
+          "cache:miss": 61.0,
+          "cache:redis_hit": 224.0,
+          "hotkey:promoted": 1.0,
+          "hotkey:refreshed": 15.0
+        },
+        "cacheHitRate": 0.8729166666666667,
+        "loaderMisses": 61.0,
+        "coalesced": 1.0,
+        "coalescingRate": 0.0020833333333333333,
+        "redisClientCalls": 888,
+        "redisClientQps": 111.2533935104739,
+        "processResources": {
+          "cpuSeconds": 3.765625,
+          "handlesOrFDs": 394,
+          "pid": 22076,
+          "rssBytes": 139575296
+        },
+        "experiment": "hotkey",
+        "arm": "proactive",
+        "seed": 2,
+        "pattern": "hot",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 480,
+        "statusCounts": {
+          "200": 480
+        },
+        "p50Ms": 14.033,
+        "p95Ms": 46.282,
+        "p99Ms": 62.237,
+        "successP99Ms": 62.237,
+        "successRate": 1.0,
+        "incorrectSuccesses": 0,
+        "offeredRps": 60,
+        "offeredSeconds": 8,
+        "offeredRequests": 480,
+        "clientDropped": 0,
+        "elapsedSeconds": 7.981418599985773,
+        "achievedSuccessRps": 60.13935189923684,
+        "sqlStatements": 489,
+        "selectStatements": 489,
+        "originLoads": 489,
+        "peakSQLPerSecond": 64,
+        "peakOriginLoadsPerSecond": 63,
+        "cacheEvents": {
+          "cache:coalesced": 0.0,
+          "cache:local_hit": 1.0,
+          "cache:miss": 475.0,
+          "cache:redis_hit": 5.0,
+          "hotkey:demoted": 1.0,
+          "hotkey:promoted": 0.0,
+          "hotkey:refreshed": 14.0
+        },
+        "cacheHitRate": 0.0125,
+        "loaderMisses": 475.0,
+        "coalesced": 0.0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 2322,
+        "redisClientQps": 290.9257259109476,
+        "processResources": {
+          "cpuSeconds": 6.828125,
+          "handlesOrFDs": 431,
+          "pid": 22076,
+          "rssBytes": 143355904
+        },
+        "experiment": "hotkey",
+        "arm": "proactive",
+        "seed": 2,
+        "pattern": "uniform",
+        "scope": "production FeedCache over HTTP; actual MySQL loader; no authorization query"
+      },
+      {
+        "requests": 367,
+        "statusCounts": {
+          "200": 191,
+          "503": 27,
+          "0": 149
+        },
+        "p50Ms": 4148.523,
+        "p95Ms": 5042.587,
+        "p99Ms": 5059.254,
+        "successP99Ms": 4990.522,
+        "successRate": 0.5204359673024523,
+        "incorrectSuccesses": 0,
+        "offeredRps": 200,
+        "offeredSeconds": 3,
+        "offeredRequests": 600,
+        "clientDropped": 233,
+        "elapsedSeconds": 8.033015099994373,
+        "achievedSuccessRps": 23.77669969321951,
+        "sqlStatements": 4095,
+        "selectStatements": 4095,
+        "originLoads": 0,
+        "peakSQLPerSecond": 614,
+        "peakOriginLoadsPerSecond": 0,
+        "cacheEvents": {
+          "cache:local_hit": 2849.0,
+          "cache:miss": 0.0,
+          "cache:redis_hit": 358.0,
+          "counter:redis_hit": 2908.0,
+          "page:success": 0.0,
+          "reaction:bitmap_hit": 2911.0,
+          "reaction:bitmap_miss": 0.0
+        },
+        "cacheHitRate": 1.0,
+        "loaderMisses": 0.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 6181,
+        "redisClientQps": 769.4495681956741,
+        "processResources": {
+          "cpuSeconds": 12.5625,
+          "handlesOrFDs": 459,
+          "pid": 27564,
+          "rssBytes": 176918528
+        },
+        "experiment": "feed_http",
+        "arm": "current",
+        "scope": "actual 10-item Feed blueprint, fixture identity, ASGI WSGI workers=16"
+      },
+      {
+        "requests": 326,
+        "statusCounts": {
+          "200": 141,
+          "503": 24,
+          "0": 161
+        },
+        "p50Ms": 4979.668,
+        "p95Ms": 6048.84,
+        "p99Ms": 6062.738,
+        "successP99Ms": 4985.295,
+        "successRate": 0.4325153374233129,
+        "incorrectSuccesses": 0,
+        "offeredRps": 500,
+        "offeredSeconds": 3,
+        "offeredRequests": 1500,
+        "clientDropped": 1174,
+        "elapsedSeconds": 7.419098799990024,
+        "achievedSuccessRps": 19.00456308997229,
+        "sqlStatements": 3398,
+        "selectStatements": 3398,
+        "originLoads": 0,
+        "peakSQLPerSecond": 362,
+        "peakOriginLoadsPerSecond": 0,
+        "cacheEvents": {
+          "cache:local_hit": 2363.0,
+          "cache:miss": 0.0,
+          "cache:redis_hit": 303.0,
+          "counter:redis_hit": 2423.0,
+          "page:success": 0.0,
+          "reaction:bitmap_hit": 2421.0,
+          "reaction:bitmap_miss": 0.0
+        },
+        "cacheHitRate": 1.0,
+        "loaderMisses": 0.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 5145,
+        "redisClientQps": 693.4804534489981,
+        "processResources": {
+          "cpuSeconds": 23.046875,
+          "handlesOrFDs": 459,
+          "pid": 27564,
+          "rssBytes": 164171776
+        },
+        "experiment": "feed_http",
+        "arm": "current",
+        "scope": "actual 10-item Feed blueprint, fixture identity, ASGI WSGI workers=16"
+      },
+      {
+        "requests": 331,
+        "statusCounts": {
+          "200": 149,
+          "503": 20,
+          "0": 162
+        },
+        "p50Ms": 5050.307,
+        "p95Ms": 6113.016,
+        "p99Ms": 6147.796,
+        "successP99Ms": 5135.174,
+        "successRate": 0.4501510574018127,
+        "incorrectSuccesses": 0,
+        "offeredRps": 1000,
+        "offeredSeconds": 3,
+        "offeredRequests": 3000,
+        "clientDropped": 2669,
+        "elapsedSeconds": 7.788838300009957,
+        "achievedSuccessRps": 19.129351325556243,
+        "sqlStatements": 3686,
+        "selectStatements": 3686,
+        "originLoads": 0,
+        "peakSQLPerSecond": 385,
+        "peakOriginLoadsPerSecond": 0,
+        "cacheEvents": {
+          "cache:local_hit": 2572.0,
+          "cache:miss": 0.0,
+          "cache:redis_hit": 328.0,
+          "counter:redis_hit": 2638.0,
+          "page:success": 0.0,
+          "reaction:bitmap_hit": 2636.0,
+          "reaction:bitmap_miss": 0.0
+        },
+        "cacheHitRate": 0.9993108201240524,
+        "loaderMisses": 0.0,
+        "coalesced": 0,
+        "coalescingRate": 0.0,
+        "redisClientCalls": 5603,
+        "redisClientQps": 719.3627321795649,
+        "processResources": {
+          "cpuSeconds": 33.3125,
+          "handlesOrFDs": 462,
+          "pid": 27564,
+          "rssBytes": 175288320
+        },
+        "experiment": "feed_http",
+        "arm": "current",
+        "scope": "actual 10-item Feed blueprint, fixture identity, ASGI WSGI workers=16"
+      }
+    ]
+  },
+  "cacheAggregate": [
+    {
+      "experiment": "tiers",
+      "pattern": "hot",
+      "arm": "redis",
+      "requests": 720,
+      "p95Ms": 30.776,
+      "p99Ms": 41.06,
+      "originLoads": 83,
+      "foregroundCompleted": 83.0,
+      "proactiveCompleted": 0,
+      "redisClientCalls": 969,
+      "redisClientQps": 80.66158549190965,
+      "coalesced": 3.0,
+      "allSuccessful": true
+    },
+    {
+      "experiment": "tiers",
+      "pattern": "uniform",
+      "arm": "redis",
+      "requests": 720,
+      "p95Ms": 47.084,
+      "p99Ms": 61.915,
+      "originLoads": 631,
+      "foregroundCompleted": 631.0,
+      "proactiveCompleted": 0,
+      "redisClientCalls": 2613,
+      "redisClientQps": 217.55563036042665,
+      "coalesced": 1.0,
+      "allSuccessful": true
+    },
+    {
+      "experiment": "tiers",
+      "pattern": "hot",
+      "arm": "local_redis",
+      "requests": 720,
+      "p95Ms": 31.53,
+      "p99Ms": 37.159,
+      "originLoads": 83,
+      "foregroundCompleted": 83.0,
+      "proactiveCompleted": 0,
+      "redisClientCalls": 339,
+      "redisClientQps": 28.220796649287973,
+      "coalesced": 0,
+      "allSuccessful": true
+    },
+    {
+      "experiment": "tiers",
+      "pattern": "uniform",
+      "arm": "local_redis",
+      "requests": 720,
+      "p95Ms": 47.414,
+      "p99Ms": 59.384,
+      "originLoads": 631,
+      "foregroundCompleted": 631.0,
+      "proactiveCompleted": 0,
+      "redisClientCalls": 2602,
+      "redisClientQps": 216.92427160348134,
+      "coalesced": 0,
+      "allSuccessful": true
+    },
+    {
+      "experiment": "singleflight",
+      "pattern": "stampede",
+      "arm": "off",
+      "requests": 960,
+      "p95Ms": 92.615,
+      "p99Ms": 103.538,
+      "originLoads": 56,
+      "foregroundCompleted": 56.0,
+      "proactiveCompleted": 0,
+      "redisClientCalls": 661,
+      "redisClientQps": 194.26907977867327,
+      "coalesced": 0,
+      "allSuccessful": true
+    },
+    {
+      "experiment": "singleflight",
+      "pattern": "stampede",
+      "arm": "on",
+      "requests": 960,
+      "p95Ms": 78.526,
+      "p99Ms": 89.482,
+      "originLoads": 33,
+      "foregroundCompleted": 33.0,
+      "proactiveCompleted": 0,
+      "redisClientCalls": 652,
+      "redisClientQps": 198.7340518963051,
+      "coalesced": 33.0,
+      "allSuccessful": true
+    },
+    {
+      "experiment": "hotkey",
+      "pattern": "hot",
+      "arm": "soft_expiry",
+      "requests": 1440,
+      "p95Ms": 34.439,
+      "p99Ms": 44.901,
+      "originLoads": 198,
+      "foregroundCompleted": 198.0,
+      "proactiveCompleted": 0,
+      "redisClientCalls": 1476,
+      "redisClientQps": 61.539885025122175,
+      "coalesced": 4.0,
+      "allSuccessful": true
+    },
+    {
+      "experiment": "hotkey",
+      "pattern": "uniform",
+      "arm": "soft_expiry",
+      "requests": 1440,
+      "p95Ms": 46.943,
+      "p99Ms": 55.789,
+      "originLoads": 1424,
+      "foregroundCompleted": 1424.0,
+      "proactiveCompleted": 0,
+      "redisClientCalls": 5711,
+      "redisClientQps": 238.07831488423196,
+      "coalesced": 0.0,
+      "allSuccessful": true
+    },
+    {
+      "experiment": "hotkey",
+      "pattern": "hot",
+      "arm": "proactive",
+      "requests": 1440,
+      "p95Ms": 33.354,
+      "p99Ms": 41.953,
+      "originLoads": 217,
+      "foregroundCompleted": 171.0,
+      "proactiveCompleted": 46.0,
+      "redisClientCalls": 2658,
+      "redisClientQps": 110.87942308263924,
+      "coalesced": 2.0,
+      "allSuccessful": true
+    },
+    {
+      "experiment": "hotkey",
+      "pattern": "uniform",
+      "arm": "proactive",
+      "requests": 1440,
+      "p95Ms": 45.169,
+      "p99Ms": 56.288,
+      "originLoads": 1465,
+      "foregroundCompleted": 1422.0,
+      "proactiveCompleted": 43.0,
+      "redisClientCalls": 6963,
+      "redisClientQps": 290.25748924042364,
+      "coalesced": 0.0,
+      "allSuccessful": true
+    }
+  ],
+  "verification": {
+    "rawRequestsRecomputed": 30460,
+    "streamRequestsRecomputed": 3396,
+    "memoryQueriesRecomputed": 100,
+    "note": "Latency distributions and status counts recomputed directly from raw rows"
+  },
+  "receipts": [
+    {
+      "path": "artifacts/perf/full/raw-cache-tiers-redis-hot-0.json",
+      "sha256": "96cf575895f7ab82bd8a1e0b71e93c2a475fb7c7c6bfbfb3894f8f75eab57098",
+      "rows": 240
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-tiers-redis-uniform-0.json",
+      "sha256": "0582194c9ec502dc5fdf588b9f0806ab58bad7853010fec09a3aebf63312be35",
+      "rows": 240
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-tiers-local_redis-hot-0.json",
+      "sha256": "dd0280cc7acc1b53505c17ac8e5b67f024718a148410ac3c4d2dcd50eee1efbe",
+      "rows": 240
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-tiers-local_redis-uniform-0.json",
+      "sha256": "3b3d0da8d5ed2a78c314314c2a827687222fcc5776703564c126f452edd6dc57",
+      "rows": 240
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-tiers-local_redis-hot-1.json",
+      "sha256": "f8b72272390da7b39e9ec52c8a9ede8795bc3615280cf44bbc90c81c6f367ff4",
+      "rows": 240
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-tiers-local_redis-uniform-1.json",
+      "sha256": "23b894fbfe0cfd718c401b47f919cf33b08612717128fa24880f7023935eb0d5",
+      "rows": 240
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-tiers-redis-hot-1.json",
+      "sha256": "3c74d81328bc3aef9c3863abfd9cdfc7438ded5448af4a2886a3663c253b980c",
+      "rows": 240
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-tiers-redis-uniform-1.json",
+      "sha256": "acc2a56f4ba297520d864f4110baee53343fd54de854f3f06d2b6b378d5ad74d",
+      "rows": 240
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-tiers-redis-hot-2.json",
+      "sha256": "ad79223c160c35af148a8fd5343cb9f435798b8fd8e69bf88f7433be125059a0",
+      "rows": 240
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-tiers-redis-uniform-2.json",
+      "sha256": "801ccd1328eec817dbc09b214c159d891828781581657c26dea54c92909ac19a",
+      "rows": 240
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-tiers-local_redis-hot-2.json",
+      "sha256": "3ea16bbac22a02c4dabff959718d31a070380798a1f3d3d17b122b14821693c4",
+      "rows": 240
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-tiers-local_redis-uniform-2.json",
+      "sha256": "eae8d3c9fba616a02333d342c4d118e51018d5a0ec049bda2e1bad75cc559346",
+      "rows": 240
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-singleflight-off-stampede-0.json",
+      "sha256": "aac0a3561e336816364a85e6c81a6f1e769fabf8c16995606275e2ff7cee1545",
+      "rows": 320
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-singleflight-on-stampede-0.json",
+      "sha256": "a9f889dbfa008a7045ca0d0bc9ce7cdc911ee5ca64540b08e33a7273a96497aa",
+      "rows": 320
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-singleflight-on-stampede-1.json",
+      "sha256": "c1559ea6582d98c8a03658d0822586968aca64272a17b27fd5a26ede136104e3",
+      "rows": 320
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-singleflight-off-stampede-1.json",
+      "sha256": "b88d88d7e693b76dd007c0ced7ced9f714b62c886bd187f8c6c64f2ca6c4ec8d",
+      "rows": 320
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-singleflight-off-stampede-2.json",
+      "sha256": "80933a8a58c2b7c94f1f465b0534eb5a6b2432819aab3336b87cb931a6fa4e56",
+      "rows": 320
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-singleflight-on-stampede-2.json",
+      "sha256": "e2dd55fa7748ae6778f8336cb79f35e6ae96324aafc738cd8b81b4d7691ca9d9",
+      "rows": 320
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-hotkey-soft_expiry-hot-0.json",
+      "sha256": "c63c4dc50f9745c5d6b8ceffb2d0411f81e061bfea0b3a88b61c1ef647012bec",
+      "rows": 480
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-hotkey-soft_expiry-uniform-0.json",
+      "sha256": "699ea98cb3bee127132df152c1e0d19c1327cbcddc7d4e33f51e37daef7e5433",
+      "rows": 480
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-hotkey-proactive-hot-0.json",
+      "sha256": "bd8dfe1f0a0cf7fbe5dc6ec88ab1db467cd8257d6d7e0b107bc649d54c724f17",
+      "rows": 480
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-hotkey-proactive-uniform-0.json",
+      "sha256": "bf07fe888ee21b12384edf4bf8569e629044b41407c3b480bac81a70f9ed064c",
+      "rows": 480
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-hotkey-proactive-hot-1.json",
+      "sha256": "7b169991f57c36976dbb97891a8e53920c99cd42be13a47a7963f5b22f824ade",
+      "rows": 480
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-hotkey-proactive-uniform-1.json",
+      "sha256": "d1558c3f48ca60d94b7eb791f8fa6b223a5dc8032788e0ef9ef36e1717f8286f",
+      "rows": 480
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-hotkey-soft_expiry-hot-1.json",
+      "sha256": "62f4c93e5c217f568c2f54b9168b7909ac80c75d37bb7b844f3735824094f85a",
+      "rows": 480
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-hotkey-soft_expiry-uniform-1.json",
+      "sha256": "1acc0433995a0acd66b6c093684c1eab187c851ee2b32c6ccd2d692c6aa117e6",
+      "rows": 480
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-hotkey-soft_expiry-hot-2.json",
+      "sha256": "1cef75ba5bd12fb46fdf26e722531e8a191a6514a2b03628ec4ecbc685577b3d",
+      "rows": 480
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-hotkey-soft_expiry-uniform-2.json",
+      "sha256": "f8f9bc89cf8387375912dddf02951b9f7b7b861e1344dfd8101024e81b7aa396",
+      "rows": 480
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-hotkey-proactive-hot-2.json",
+      "sha256": "970b35946c9782e3fc98b3e5035d0a4699e52c3d4fafcef1927649f8acb673dc",
+      "rows": 480
+    },
+    {
+      "path": "artifacts/perf/full/raw-cache-hotkey-proactive-uniform-2.json",
+      "sha256": "73ac3da064f080f7664e5299dc7f8df47a7eb5653c7c06257deb589ba06851e4",
+      "rows": 480
+    },
+    {
+      "path": "artifacts/perf/full/raw-feed-200.json",
+      "sha256": "16db6c7ca2d135e2c07f9bea2746c6314237fe3b69271f3223dfb13895431989",
+      "rows": 600
+    },
+    {
+      "path": "artifacts/perf/full/raw-feed-500.json",
+      "sha256": "2b4fdb8d4da0280e0481ea79d3c700a9b561aa4f34f9ba98c6744ef6b9cee8ad",
+      "rows": 1500
+    },
+    {
+      "path": "artifacts/perf/full/raw-feed-1000.json",
+      "sha256": "7cb736cc356865d15695695f128a72ea9cc426e4291f5b0b9aa107f8704d3da5",
+      "rows": 3000
+    },
+    {
+      "path": "artifacts/perf/full/raw-reaction-1000.json",
+      "sha256": "d60ecea9adcc3065cc129ae8b0bfb0d2b7579749239ee671829b02489b6339f5",
+      "rows": 4000
+    },
+    {
+      "path": "artifacts/perf/full/raw-reaction-200.json",
+      "sha256": "1d746c52a9ad77a18d8b29ec69a82f29586a1c07020e1a351809a47b24964920",
+      "rows": 800
+    },
+    {
+      "path": "artifacts/perf/full/raw-reaction-2000.json",
+      "sha256": "b49b7b141c6f44aca10acded960d03b452f95e7c21329943c195c855cb30c5d1",
+      "rows": 8000
+    },
+    {
+      "path": "artifacts/perf/full/raw-reaction-500.json",
+      "sha256": "d917f2c25c27b1e977ffb8c2a02b4d98ea55c53211ff4d97ea8146d88b41d937",
+      "rows": 2000
+    },
+    {
+      "path": "artifacts/perf/full/raw-stream-False-0-32.json",
+      "sha256": "70dcd9904e541a7a7b9736e6515fcc9687a62062ab98eb68f1baa3d7b32af5a0",
+      "rows": 192
+    },
+    {
+      "path": "artifacts/perf/full/raw-stream-True-0-128.json",
+      "sha256": "1597d322f7bd8d97a3afbfecb7902392975caf97fbbce44b526b7413a52ce754",
+      "rows": 696
+    },
+    {
+      "path": "artifacts/perf/full/raw-stream-True-0-16.json",
+      "sha256": "062e2adbf7bdfd298283bbacec9d70868fc237c480674270fa0073a3804687ac",
+      "rows": 96
+    },
+    {
+      "path": "artifacts/perf/full/raw-stream-True-0-256.json",
+      "sha256": "4023185c484cfbb66a8a48952dc5ebcdb572f9e8d1ce014f26d297942354e0c5",
+      "rows": 1058
+    },
+    {
+      "path": "artifacts/perf/full/raw-stream-True-0-32.json",
+      "sha256": "34c6339ac4d80201c90a6e8777645c85f65bcebb05eadc515366b76212fc1605",
+      "rows": 192
+    },
+    {
+      "path": "artifacts/perf/full/raw-stream-True-0-64.json",
+      "sha256": "b1240263051e3d955b61fdeb921ba08a006a80116c14efa830264088627aac3a",
+      "rows": 384
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-kafka-lag.json",
+      "sha256": "bd4190d4cf0cd9015a49a6ee419aac9f1bf6b481d298479ec3360495f3b0b021",
+      "rows": 158
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-memory-labels-and-ranks.json",
+      "sha256": "9e7c5f3ccaea144af04bfab772102eb6e17723262eb660540b5a1a3b0b73107f",
+      "rows": 100
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-reaction-1000.json",
+      "sha256": "bcdfcea8c5290b7bcffcb33e0d6ff11654a3f81e7084f9e8ae525dc077467b3d",
+      "rows": 4000
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-reaction-200.json",
+      "sha256": "3cf83b87c93dc561f8690b812c48795186bdf1645e11a46382cc4f2b8cecfdc3",
+      "rows": 800
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-reaction-2000.json",
+      "sha256": "0af5b4a8a799f0439944048fcce03c4f44a3e45247aa1a7c74390a965b69ba49",
+      "rows": 8000
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-reaction-500.json",
+      "sha256": "21efc70f4bb6075789b9513db0e694a79947befe9f89c7e9da5115798ac8ee4e",
+      "rows": 2000
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-stream-False-0-32.json",
+      "sha256": "a2f122a00faedbfdb97844aa8748e8d60637b62292fcd3a08241b59732247abb",
+      "rows": 192
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-stream-False-1-32.json",
+      "sha256": "f1b778062670497bf8d663837c73a1836bea11c9eca209ec6912c322a99d903f",
+      "rows": 192
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-stream-False-2-32.json",
+      "sha256": "9004214c85dc4798d3dcef0b1de03379bde88db942e99122e594b32af370e12d",
+      "rows": 192
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-stream-True-0-128.json",
+      "sha256": "4294c7a3d44bbaaf3c2c17618daeff4e3f91b64afc25e2e58e598cce78f65e07",
+      "rows": 696
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-stream-True-0-16.json",
+      "sha256": "2093a4116182dc21f7aab0528ef410824a558714d54ee7d8e9674623ee50f38e",
+      "rows": 96
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-stream-True-0-256.json",
+      "sha256": "2b81f2fc474166c6bd9a65dcdaba991157eaca22651a08463ba64222e766fbef",
+      "rows": 1068
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-stream-True-0-32.json",
+      "sha256": "9482a31773309fa8729efd87ee2393105c20d40d2abfb0201bcec4b757879430",
+      "rows": 192
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-stream-True-0-64.json",
+      "sha256": "0b6fbbe3dfde67bc72d518263da46a6416481b0bdb2a334a6b545c81f0ddf413",
+      "rows": 384
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-stream-True-1-32.json",
+      "sha256": "b3735d202c22b28e6204053eea50fcbe08180bb10356f7df7a122dc30ad7db4d",
+      "rows": 192
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-stream-True-2-32.json",
+      "sha256": "5c5c20f3bbee442f8e49f2c29838fab4ea9c01b4a700279272e7df3236237490",
+      "rows": 192
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-uploads-1.json",
+      "sha256": "451c7534331ccd904d0e022611e0d7b2ecef2aad89c50ed791bdf627501cfe27",
+      "rows": 4
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-uploads-4.json",
+      "sha256": "5d99507b9f9bc1164afd3cd11c49bc57b14b4caf01be32f0c377ce52e698a33e",
+      "rows": 8
+    },
+    {
+      "path": "artifacts/perf/remaining/raw-uploads-8.json",
+      "sha256": "03c35f9bad277454326e7d5c68ef7be6c615ba8a4246dd4a02aa2152cdefd62b",
+      "rows": 16
+    }
+  ]
+}

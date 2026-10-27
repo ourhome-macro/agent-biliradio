@@ -1,0 +1,18 @@
+{
+  "nativeMinioExactSizePolicy": true,
+  "nativePresignedDirectUpload": true,
+  "nativeFFmpegAudioValidation": true,
+  "sourceOverwriteCannotMutatePublishedAsset": true,
+  "publicationAndOutbox": true,
+  "realFrontendAudioDirectUpload": true,
+  "realFrontendAsyncPublish": true,
+  "realFrontendAudioPlayback": true,
+  "frontendJavascriptErrors": 0,
+  "realHlsByteRangePlayback": true,
+  "realHlsSeek": true,
+  "upstreamRangeRequests": 9,
+  "biliMinioWrites": 0,
+  "nativeMySQL009To010PreservedData": true,
+  "nativeMySQLUpgradeIdempotent": true,
+  "nativeMySQLAudioUploadQueue": true
+}

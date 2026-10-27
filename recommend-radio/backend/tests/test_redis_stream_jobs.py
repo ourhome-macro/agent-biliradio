@@ -29,7 +29,9 @@ def setup(tmp_path, monkeypatch):
 def add(repo, kind="feed_projection"):
     with get_connection(repo.db_path) as conn:
         return enqueue(
-            conn, kind=kind, user_id="legacy-owner", payload={"value": 1}, retry_safe=True
+            conn, kind=kind, user_id="legacy-owner",
+            payload={"value":1,"content_id":"transport-fixture","user_id":"legacy-owner",
+                     "event_id":"transport-event","state":"like","version":1},retry_safe=True
         )
 
 

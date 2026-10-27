@@ -89,8 +89,6 @@ def user_bitmap_id(db_path, user_id: str, *, create=False):
     if not isinstance(user_id, str) or not user_id:
         raise ValueError("A platform user ID is required")
     with get_connection(db_path) as conn:
-        if create:
-            begin_write(conn, namespace="bitmap-user", key=user_id)
         row = conn.execute(
             "SELECT bitmap_id FROM reaction_bitmap_users WHERE user_id=?",
             (user_id,),
@@ -99,6 +97,12 @@ def user_bitmap_id(db_path, user_id: str, *, create=False):
             return int(row[0])
         if not create:
             return None
+        begin_write(conn, namespace="bitmap-user", key=user_id)
+        row = conn.execute(
+            "SELECT bitmap_id FROM reaction_bitmap_users WHERE user_id=?", (user_id,)
+        ).fetchone()
+        if row:
+            return int(row[0])
         conn.execute("INSERT INTO reaction_bitmap_users(user_id) VALUES (?)", (user_id,))
         return int(
             conn.execute(

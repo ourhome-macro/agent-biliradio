@@ -4,6 +4,7 @@ import json
 import random
 import threading
 import time
+import weakref
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -37,7 +38,8 @@ class _Flight:
 class FeedCache:
     """Versioned read projections. Leases/cancellation never depend on this cache."""
 
-    def __init__(self, url: str | None, *, prefix: str = "radio:feed", client=None):
+    def __init__(self, url: str | None, *, prefix: str = "radio:feed", client=None,
+                 hotkey_config=None, metadata_loader=None, hotkey_background=True):
         self.prefix = prefix
         if client is not None:
             self.redis = client
@@ -66,8 +68,17 @@ class FeedCache:
         self._redis_state_lock = threading.Lock()
         self._redis_retry_at = 0.0
         self._redis_probe_running = False
+        self.hotkeys = None
+        self._hotkey_finalizer = None
+        if hotkey_config is not None and hotkey_config.enabled:
+            if self.redis is None or metadata_loader is None:
+                raise ValueError("Hot key detection requires Redis and an authoritative loader")
+            from .hotkeys import HotKeys
+            self.hotkeys = HotKeys(self, metadata_loader, hotkey_config,
+                                   background=hotkey_background)
+            self._hotkey_finalizer = weakref.finalize(self, self.hotkeys.close)
 
-    def _redis_call(self, command, *args, probe=False, **kwargs):
+    def _redis_call(self, command, *args, probe=False, _target=None, **kwargs):
         if self.redis is None:
             return None
         with self._redis_state_lock:
@@ -79,7 +90,7 @@ class FeedCache:
             if recovering:
                 self._redis_probe_running = True
         try:
-            value = getattr(self.redis, command)(*args, **kwargs)
+            value = getattr(self.redis if _target is None else _target, command)(*args, **kwargs)
         except (RedisConnectionError, RedisTimeoutError, OSError):
             with self._redis_state_lock:
                 self._redis_retry_at = time.monotonic() + 2.0
@@ -99,6 +110,24 @@ class FeedCache:
         except Exception:
             return False
 
+    def hotkey_status(self) -> dict:
+        if self.hotkeys is None:
+            return {"enabled": False}
+        hot = self.hotkeys
+        with hot.lock:
+            pending = len(hot.pending)
+        try:
+            hot_count, tracked, leases = self._redis_call(
+                "eval",
+                "return {redis.call('ZCARD',KEYS[1]),redis.call('ZCARD',KEYS[2]),"
+                "redis.call('ZCARD',KEYS[3])}",
+                3, hot.due, hot.tracked, hot.active,
+            )
+            return {"enabled": True, "available": True, "hotKeys": hot_count,
+                    "trackedKeys": tracked, "leaseRecords": leases, "pendingKeys": pending}
+        except Exception:
+            return {"enabled": True, "available": False, "pendingKeys": pending}
+
     def get(
         self,
         key: str,
@@ -108,7 +137,10 @@ class FeedCache:
         soft: float = 60,
         hard: float = 300,
         shared: bool = False,
+        content_id: str | None = None,
     ) -> dict:
+        if self.hotkeys is not None and shared and content_id is not None:
+            self.hotkeys.observe(content_id)
         cache_key = f"{self.prefix}:{key}:v{version}"
         now = time.time()
         if shared:
@@ -267,6 +299,27 @@ class FeedCache:
             count("projection", "redis_error")
             raise
 
+    def publish_projection_batch(self, counters, relations):
+        if self.redis is None:
+            return
+        pipe = self.redis.pipeline(transaction=False)
+        for cid, value in counters.items():
+            pipe.eval(
+                _PUBLISH, 1, f"{self.prefix}:counter:{cid}",
+                value["version"], json.dumps(value), 300,
+            )
+        for value in relations:
+            validate_reaction(value["state"], value["version"])
+            keys, offset = bitmap_keys(self.prefix, value["content_id"], value["bitmap_id"])
+            pipe.eval(PUBLISH, 4, *keys, offset, str(value["version"]), value["state"], BITMAP_TTL)
+        try:
+            self._redis_call("execute", _target=pipe)
+        except Exception:
+            count("projection_batch", "redis_error")
+            raise
+        finally:
+            pipe.reset()
+
     def reaction(
         self, user_id: str, content_id: str, loader, *, bitmap_id: int | None, expected_version: int
     ):
@@ -325,6 +378,9 @@ class FeedCache:
         return value
 
     def close(self):
+        if self.hotkeys is not None:
+            self._hotkey_finalizer.detach()
+            self.hotkeys.close()
         self._refresh.shutdown(wait=False, cancel_futures=True)
         if self.redis:
             self.redis.close()
@@ -334,6 +390,8 @@ class FeedCache:
         if not isinstance(content_id, str) or not content_id or any(c in content_id for c in "*?[]"):
             raise ValueError("An authoritative content identity is required")
         prefix = f"{self.prefix}:content:{content_id}:"
+        if self.hotkeys is not None:
+            self.hotkeys.invalidate(content_id)
         with self._lock:
             for key in list(self._local):
                 if key.startswith(prefix):

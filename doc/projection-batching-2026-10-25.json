@@ -1,0 +1,1937 @@
+{
+  "date": "2026-10-25",
+  "scope": "Isolated synthetic fixtures; no production traffic or credentials",
+  "evidence": {
+    "fixed100msThreeRounds": {
+      "source": "artifacts/perf/projection-batches/window-100ms-three-rounds.json",
+      "sha256": "1ca63751e0c93d1b88d211ee9c010645c80288045af116236457a94c2dd29ef4",
+      "result": {
+        "scope": "512 submitted events, 64 users x 8 transitions; real MySQL/Redis, sequential consumer, not HTTP capacity",
+        "samples": [
+          {
+            "seed": 0,
+            "arm": "scalar",
+            "submittedEvents": 512,
+            "elapsedSeconds": 21.281801299977815,
+            "eventsPerSecond": 24.058113915410615,
+            "sqlStatements": 11649,
+            "scalarRedisCalls": 1024,
+            "redisPipelineBatches": 0,
+            "consumerBatches": 512,
+            "coalescedEvents": 0,
+            "inboxReceipts": 512,
+            "finalLikes": 64,
+            "finalDislikes": 0,
+            "redisLikes": 64,
+            "redisDislikes": 0,
+            "completedJobs": 512
+          },
+          {
+            "seed": 0,
+            "arm": "batch",
+            "submittedEvents": 512,
+            "elapsedSeconds": 1.54921359999571,
+            "eventsPerSecond": 330.49025647684596,
+            "sqlStatements": 193,
+            "scalarRedisCalls": 0,
+            "redisPipelineBatches": 8,
+            "consumerBatches": 8,
+            "coalescedEvents": 448,
+            "inboxReceipts": 512,
+            "finalLikes": 64,
+            "finalDislikes": 0,
+            "redisLikes": 64,
+            "redisDislikes": 0,
+            "completedJobs": 512
+          },
+          {
+            "seed": 1,
+            "arm": "batch",
+            "submittedEvents": 512,
+            "elapsedSeconds": 1.6430958999844734,
+            "eventsPerSecond": 311.6068879514812,
+            "sqlStatements": 193,
+            "scalarRedisCalls": 0,
+            "redisPipelineBatches": 8,
+            "consumerBatches": 8,
+            "coalescedEvents": 448,
+            "inboxReceipts": 512,
+            "finalLikes": 64,
+            "finalDislikes": 0,
+            "redisLikes": 64,
+            "redisDislikes": 0,
+            "completedJobs": 512
+          },
+          {
+            "seed": 1,
+            "arm": "scalar",
+            "submittedEvents": 512,
+            "elapsedSeconds": 20.539904300007038,
+            "eventsPerSecond": 24.92708790273305,
+            "sqlStatements": 11649,
+            "scalarRedisCalls": 1024,
+            "redisPipelineBatches": 0,
+            "consumerBatches": 512,
+            "coalescedEvents": 0,
+            "inboxReceipts": 512,
+            "finalLikes": 64,
+            "finalDislikes": 0,
+            "redisLikes": 64,
+            "redisDislikes": 0,
+            "completedJobs": 512
+          },
+          {
+            "seed": 2,
+            "arm": "scalar",
+            "submittedEvents": 512,
+            "elapsedSeconds": 21.379215699998895,
+            "eventsPerSecond": 23.948493115209388,
+            "sqlStatements": 11649,
+            "scalarRedisCalls": 1024,
+            "redisPipelineBatches": 0,
+            "consumerBatches": 512,
+            "coalescedEvents": 0,
+            "inboxReceipts": 512,
+            "finalLikes": 64,
+            "finalDislikes": 0,
+            "redisLikes": 64,
+            "redisDislikes": 0,
+            "completedJobs": 512
+          },
+          {
+            "seed": 2,
+            "arm": "batch",
+            "submittedEvents": 512,
+            "elapsedSeconds": 1.7643665000214241,
+            "eventsPerSecond": 290.18914153821385,
+            "sqlStatements": 193,
+            "scalarRedisCalls": 0,
+            "redisPipelineBatches": 8,
+            "consumerBatches": 8,
+            "coalescedEvents": 448,
+            "inboxReceipts": 512,
+            "finalLikes": 64,
+            "finalDislikes": 0,
+            "redisLikes": 64,
+            "redisDislikes": 0,
+            "completedJobs": 512
+          }
+        ]
+      }
+    },
+    "finalIndexOrderVerification": {
+      "source": "artifacts/perf/projection-batches/fixed-volume.json",
+      "sha256": "e9dabcfcb70dddf0d3b5e12515821b246665b1e817c4abc2285e767d836195bc",
+      "result": {
+        "scope": "512 submitted events, 64 users x 8 transitions; real MySQL/Redis, sequential consumer, not HTTP capacity",
+        "samples": [
+          {
+            "seed": 0,
+            "arm": "scalar",
+            "submittedEvents": 512,
+            "elapsedSeconds": 21.009456899977522,
+            "eventsPerSecond": 24.369977883652375,
+            "sqlStatements": 11649,
+            "scalarRedisCalls": 1024,
+            "redisPipelineBatches": 0,
+            "consumerBatches": 512,
+            "coalescedEvents": 0,
+            "inboxReceipts": 512,
+            "finalLikes": 64,
+            "finalDislikes": 0,
+            "redisLikes": 64,
+            "redisDislikes": 0,
+            "completedJobs": 512
+          },
+          {
+            "seed": 0,
+            "arm": "batch",
+            "submittedEvents": 512,
+            "elapsedSeconds": 1.6163962999999058,
+            "eventsPerSecond": 316.7540039531332,
+            "sqlStatements": 193,
+            "scalarRedisCalls": 0,
+            "redisPipelineBatches": 8,
+            "consumerBatches": 8,
+            "coalescedEvents": 448,
+            "inboxReceipts": 512,
+            "finalLikes": 64,
+            "finalDislikes": 0,
+            "redisLikes": 64,
+            "redisDislikes": 0,
+            "completedJobs": 512
+          }
+        ]
+      }
+    },
+    "previousSharedProcess": {
+      "source": "artifacts/perf/remediation-final-v2/summary.json",
+      "sha256": "d2bc7f2e8fc199db8b7d00bc9040fb04ebb7c21cef0ddf60bce5fca72b151132",
+      "result": {
+        "stages": [
+          {
+            "requests": 511,
+            "statusCounts": {
+              "200": 506,
+              "503": 5
+            },
+            "p50Ms": 2647.736,
+            "p95Ms": 3646.298,
+            "p99Ms": 3817.474,
+            "successP99Ms": 3817.474,
+            "successRate": 0.9902152641878669,
+            "incorrectSuccesses": 0,
+            "offeredRps": 200,
+            "offeredSeconds": 4,
+            "offeredRequests": 800,
+            "clientDropped": 289,
+            "elapsedSeconds": 7.322467200021492,
+            "achievedSuccessRps": 69.10201090120817,
+            "offeredSuccessRate": 0.6325,
+            "sqlProfile": {
+              "bitmap_mapping": {
+                "calls": 1841,
+                "wallMs": 4883.059199288255
+              },
+              "counters": {
+                "calls": 726,
+                "wallMs": 1850.5705998686608
+              },
+              "jobs": {
+                "calls": 2109,
+                "wallMs": 5474.007599288598
+              },
+              "joins": {
+                "calls": 506,
+                "wallMs": 1331.4173998951446
+              },
+              "locks": {
+                "calls": 4298,
+                "wallMs": 11841.518101340625
+              },
+              "other": {
+                "calls": 3410,
+                "wallMs": 8817.167700268328
+              },
+              "reaction_state": {
+                "calls": 1110,
+                "wallMs": 2963.7512005283497
+              }
+            },
+            "sqlStatements": 14098,
+            "selectStatements": 8142,
+            "originLoads": 0,
+            "peakSQLPerSecond": 2038,
+            "peakOriginLoadsPerSecond": 0,
+            "cacheEvents": {
+              "projection:success": 110.0,
+              "reaction:changed": 506.0
+            },
+            "cacheHitRate": null,
+            "loaderMisses": 0,
+            "coalesced": 0,
+            "coalescingRate": null,
+            "redisClientCalls": 220,
+            "redisClientQps": 30.04451832837903,
+            "processResources": {
+              "cpuSeconds": 10.03125,
+              "handlesOrFDs": 430,
+              "pid": 13896,
+              "rssBytes": 168222720
+            },
+            "experiment": "reactions_http",
+            "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+          },
+          {
+            "requests": 564,
+            "statusCounts": {
+              "200": 564
+            },
+            "p50Ms": 2620.586,
+            "p95Ms": 4034.445,
+            "p99Ms": 4435.472,
+            "successP99Ms": 4435.472,
+            "successRate": 1.0,
+            "incorrectSuccesses": 0,
+            "offeredRps": 500,
+            "offeredSeconds": 4,
+            "offeredRequests": 2000,
+            "clientDropped": 1436,
+            "elapsedSeconds": 6.671551599982195,
+            "achievedSuccessRps": 84.53686322101619,
+            "offeredSuccessRate": 0.282,
+            "sqlProfile": {
+              "bitmap_mapping": {
+                "calls": 837,
+                "wallMs": 1991.8101997755002
+              },
+              "counters": {
+                "calls": 794,
+                "wallMs": 1823.2701999368146
+              },
+              "jobs": {
+                "calls": 1790,
+                "wallMs": 4694.2315000342205
+              },
+              "joins": {
+                "calls": 485,
+                "wallMs": 1154.4360997213516
+              },
+              "locks": {
+                "calls": 3312,
+                "wallMs": 8407.947798375972
+              },
+              "other": {
+                "calls": 3418,
+                "wallMs": 8371.317499753786
+              },
+              "reaction_state": {
+                "calls": 1326,
+                "wallMs": 3257.6015999075025
+              }
+            },
+            "sqlStatements": 12322,
+            "selectStatements": 7272,
+            "originLoads": 0,
+            "peakSQLPerSecond": 2000,
+            "peakOriginLoadsPerSecond": 0,
+            "cacheEvents": {
+              "projection:success": 115.0,
+              "reaction:changed": 403.0,
+              "reaction:unchanged": 161.0
+            },
+            "cacheHitRate": null,
+            "loaderMisses": 0,
+            "coalesced": 0,
+            "coalescingRate": null,
+            "redisClientCalls": 230,
+            "redisClientQps": 34.47473897985198,
+            "processResources": {
+              "cpuSeconds": 17.625,
+              "handlesOrFDs": 446,
+              "pid": 13896,
+              "rssBytes": 169242624
+            },
+            "experiment": "reactions_http",
+            "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+          },
+          {
+            "requests": 602,
+            "statusCounts": {
+              "200": 602
+            },
+            "p50Ms": 2608.402,
+            "p95Ms": 3866.87,
+            "p99Ms": 4198.818,
+            "successP99Ms": 4198.818,
+            "successRate": 1.0,
+            "incorrectSuccesses": 0,
+            "offeredRps": 1000,
+            "offeredSeconds": 4,
+            "offeredRequests": 4000,
+            "clientDropped": 3398,
+            "elapsedSeconds": 6.89153449999867,
+            "achievedSuccessRps": 87.35097390600055,
+            "offeredSuccessRate": 0.1505,
+            "sqlProfile": {
+              "bitmap_mapping": {
+                "calls": 801,
+                "wallMs": 2039.2134001594968
+              },
+              "counters": {
+                "calls": 844,
+                "wallMs": 1992.7229000313673
+              },
+              "jobs": {
+                "calls": 2035,
+                "wallMs": 5102.2677005967125
+              },
+              "joins": {
+                "calls": 221,
+                "wallMs": 632.6605999784078
+              },
+              "locks": {
+                "calls": 3644,
+                "wallMs": 9054.28190017119
+              },
+              "other": {
+                "calls": 3722,
+                "wallMs": 9045.885799539974
+              },
+              "reaction_state": {
+                "calls": 1535,
+                "wallMs": 3682.687700173119
+              }
+            },
+            "sqlStatements": 13261,
+            "selectStatements": 7609,
+            "originLoads": 0,
+            "peakSQLPerSecond": 2034,
+            "peakOriginLoadsPerSecond": 0,
+            "cacheEvents": {
+              "projection:success": 121.0,
+              "reaction:changed": 474.0,
+              "reaction:unchanged": 128.0
+            },
+            "cacheHitRate": null,
+            "loaderMisses": 0,
+            "coalesced": 0,
+            "coalescingRate": null,
+            "redisClientCalls": 242,
+            "redisClientQps": 35.115546472276485,
+            "processResources": {
+              "cpuSeconds": 25.625,
+              "handlesOrFDs": 433,
+              "pid": 13896,
+              "rssBytes": 169742336
+            },
+            "experiment": "reactions_http",
+            "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+          },
+          {
+            "requests": 569,
+            "statusCounts": {
+              "200": 569
+            },
+            "p50Ms": 2802.153,
+            "p95Ms": 4467.775,
+            "p99Ms": 4944.237,
+            "successP99Ms": 4944.237,
+            "successRate": 1.0,
+            "incorrectSuccesses": 0,
+            "offeredRps": 2000,
+            "offeredSeconds": 4,
+            "offeredRequests": 8000,
+            "clientDropped": 7431,
+            "elapsedSeconds": 6.854903400002513,
+            "achievedSuccessRps": 83.00163071202078,
+            "offeredSuccessRate": 0.071125,
+            "sqlProfile": {
+              "bitmap_mapping": {
+                "calls": 712,
+                "wallMs": 1931.1192003369797
+              },
+              "counters": {
+                "calls": 794,
+                "wallMs": 1890.6594998261426
+              },
+              "jobs": {
+                "calls": 1798,
+                "wallMs": 4619.554800068727
+              },
+              "joins": {
+                "calls": 459,
+                "wallMs": 1301.2004999036435
+              },
+              "locks": {
+                "calls": 3252,
+                "wallMs": 8424.96099852724
+              },
+              "other": {
+                "calls": 3484,
+                "wallMs": 8573.262498801341
+              },
+              "reaction_state": {
+                "calls": 1372,
+                "wallMs": 3572.3347994789947
+              }
+            },
+            "sqlStatements": 12321,
+            "selectStatements": 7240,
+            "originLoads": 0,
+            "peakSQLPerSecond": 1899,
+            "peakOriginLoadsPerSecond": 0,
+            "cacheEvents": {
+              "projection:success": 112.0,
+              "reaction:changed": 409.0,
+              "reaction:unchanged": 160.0
+            },
+            "cacheHitRate": null,
+            "loaderMisses": 0,
+            "coalesced": 0,
+            "coalescingRate": null,
+            "redisClientCalls": 224,
+            "redisClientQps": 32.67733867699987,
+            "processResources": {
+              "cpuSeconds": 33.28125,
+              "handlesOrFDs": 424,
+              "pid": 13896,
+              "rssBytes": 174530560
+            },
+            "experiment": "reactions_http",
+            "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+          }
+        ],
+        "convergenceSecondsAfterProducerStop": 31.312999999994645,
+        "stateCorrect": true,
+        "serverQuiescent": true,
+        "finalState": {
+          "dislikes": 100,
+          "expectedDislikes": 100,
+          "expectedLikes": 285,
+          "flaskActive": 1,
+          "httpActive": 1,
+          "likes": 285,
+          "pending": 0
+        }
+      }
+    },
+    "sharedProcess10ms": {
+      "source": "artifacts/perf/projection-http/summary.json",
+      "sha256": "28ffe0f399c6c884c0749b14d6f952620975b0487fc7507656eacf51ba578fe9",
+      "result": {
+        "environment": {
+          "platform": "Windows-11-10.0.26100-SP0",
+          "python": "3.12.5",
+          "cpuLogical": 16,
+          "mysqlBufferPoolMiB": 64,
+          "http": "uvicorn + a2wsgi workers=16; fixture identity, no OIDC cost"
+        },
+        "definitions": {
+          "latency": "scheduled arrival through full HTTP response; includes client scheduling and queue delay",
+          "status0": "timeout",
+          "status-1": "HTTP transport error",
+          "status-2": "bounded generator drop",
+          "source": "isolated synthetic fixtures; no business credentials or traffic"
+        },
+        "results": {
+          "reactions": {
+            "stages": [
+              {
+                "requests": 470,
+                "statusCounts": {
+                  "200": 379,
+                  "503": 24,
+                  "0": 67
+                },
+                "p50Ms": 3278.842,
+                "p95Ms": 5028.173,
+                "p99Ms": 5069.515,
+                "successP99Ms": 4998.245,
+                "successRate": 0.8063829787234043,
+                "incorrectSuccesses": 0,
+                "offeredRps": 200,
+                "offeredSeconds": 4,
+                "offeredRequests": 800,
+                "clientDropped": 330,
+                "elapsedSeconds": 8.879293799982406,
+                "achievedSuccessRps": 42.683141082760535,
+                "offeredSuccessRate": 0.47375,
+                "sqlProfile": {
+                  "bitmap_mapping": {
+                    "calls": 1571,
+                    "wallMs": 5823.018500115722
+                  },
+                  "counters": {
+                    "calls": 555,
+                    "wallMs": 2400.1885997713543
+                  },
+                  "jobs": {
+                    "calls": 2209,
+                    "wallMs": 9778.11569950427
+                  },
+                  "joins": {
+                    "calls": 421,
+                    "wallMs": 1915.1793998898938
+                  },
+                  "locks": {
+                    "calls": 3526,
+                    "wallMs": 14725.70650029229
+                  },
+                  "other": {
+                    "calls": 2440,
+                    "wallMs": 10128.742600732949
+                  },
+                  "reaction_state": {
+                    "calls": 902,
+                    "wallMs": 3842.2151002741884
+                  }
+                },
+                "sqlStatements": 11682,
+                "selectStatements": 6856,
+                "originLoads": 0,
+                "peakSQLPerSecond": 1769,
+                "peakOriginLoadsPerSecond": 0,
+                "cacheEvents": {
+                  "projection_batch:coalesced": 0.0,
+                  "projection_batch:events": 419.0,
+                  "projection_batch:jobs": 419.0,
+                  "reaction:changed": 421.0
+                },
+                "cacheHitRate": null,
+                "loaderMisses": 0,
+                "coalesced": 0,
+                "coalescingRate": null,
+                "redisClientCalls": 0,
+                "redisClientQps": 0.0,
+                "processResources": {
+                  "cpuSeconds": 11.4375,
+                  "handlesOrFDs": 435,
+                  "pid": 22092,
+                  "rssBytes": 170135552
+                },
+                "experiment": "reactions_http",
+                "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+              },
+              {
+                "requests": 423,
+                "statusCounts": {
+                  "200": 315,
+                  "503": 6,
+                  "0": 102
+                },
+                "p50Ms": 3183.497,
+                "p95Ms": 5486.41,
+                "p99Ms": 6164.947,
+                "successP99Ms": 5019.549,
+                "successRate": 0.7446808510638298,
+                "incorrectSuccesses": 0,
+                "offeredRps": 500,
+                "offeredSeconds": 4,
+                "offeredRequests": 2000,
+                "clientDropped": 1577,
+                "elapsedSeconds": 7.226973499986343,
+                "achievedSuccessRps": 43.58556136259376,
+                "offeredSuccessRate": 0.1575,
+                "sqlProfile": {
+                  "bitmap_mapping": {
+                    "calls": 533,
+                    "wallMs": 2103.460100333905
+                  },
+                  "counters": {
+                    "calls": 430,
+                    "wallMs": 1800.3174996993039
+                  },
+                  "jobs": {
+                    "calls": 1517,
+                    "wallMs": 6554.5771002653055
+                  },
+                  "joins": {
+                    "calls": 275,
+                    "wallMs": 1455.1642997539602
+                  },
+                  "locks": {
+                    "calls": 1956,
+                    "wallMs": 8151.939900533762
+                  },
+                  "other": {
+                    "calls": 1720,
+                    "wallMs": 7049.879799305927
+                  },
+                  "reaction_state": {
+                    "calls": 766,
+                    "wallMs": 3139.739100326551
+                  }
+                },
+                "sqlStatements": 7400,
+                "selectStatements": 4430,
+                "originLoads": 0,
+                "peakSQLPerSecond": 1129,
+                "peakOriginLoadsPerSecond": 0,
+                "cacheEvents": {
+                  "projection_batch:coalesced": 0.0,
+                  "projection_batch:events": 246.0,
+                  "projection_batch:jobs": 246.0,
+                  "reaction:changed": 244.0,
+                  "reaction:unchanged": 75.0
+                },
+                "cacheHitRate": null,
+                "loaderMisses": 0,
+                "coalesced": 0,
+                "coalescingRate": null,
+                "redisClientCalls": 0,
+                "redisClientQps": 0.0,
+                "processResources": {
+                  "cpuSeconds": 19.015625,
+                  "handlesOrFDs": 426,
+                  "pid": 22092,
+                  "rssBytes": 168259584
+                },
+                "experiment": "reactions_http",
+                "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+              },
+              {
+                "requests": 445,
+                "statusCounts": {
+                  "200": 345,
+                  "503": 3,
+                  "0": 97
+                },
+                "p50Ms": 3168.123,
+                "p95Ms": 5610.271,
+                "p99Ms": 6348.056,
+                "successP99Ms": 4996.563,
+                "successRate": 0.7752808988764045,
+                "incorrectSuccesses": 0,
+                "offeredRps": 1000,
+                "offeredSeconds": 4,
+                "offeredRequests": 4000,
+                "clientDropped": 3555,
+                "elapsedSeconds": 7.210904699983075,
+                "achievedSuccessRps": 47.84173322309287,
+                "offeredSuccessRate": 0.08625,
+                "sqlProfile": {
+                  "bitmap_mapping": {
+                    "calls": 520,
+                    "wallMs": 1906.8670996639412
+                  },
+                  "counters": {
+                    "calls": 475,
+                    "wallMs": 1791.9115000404418
+                  },
+                  "jobs": {
+                    "calls": 1672,
+                    "wallMs": 6813.043998961803
+                  },
+                  "joins": {
+                    "calls": 122,
+                    "wallMs": 575.5277000716887
+                  },
+                  "locks": {
+                    "calls": 2140,
+                    "wallMs": 8171.876800246537
+                  },
+                  "other": {
+                    "calls": 1917,
+                    "wallMs": 7217.596700123977
+                  },
+                  "reaction_state": {
+                    "calls": 885,
+                    "wallMs": 3605.75139982393
+                  }
+                },
+                "sqlStatements": 7986,
+                "selectStatements": 4690,
+                "originLoads": 0,
+                "peakSQLPerSecond": 1198,
+                "peakOriginLoadsPerSecond": 0,
+                "cacheEvents": {
+                  "projection_batch:coalesced": 1.0,
+                  "projection_batch:events": 274.0,
+                  "projection_batch:jobs": 274.0,
+                  "reaction:changed": 276.0,
+                  "reaction:unchanged": 79.0
+                },
+                "cacheHitRate": null,
+                "loaderMisses": 0,
+                "coalesced": 0,
+                "coalescingRate": null,
+                "redisClientCalls": 0,
+                "redisClientQps": 0.0,
+                "processResources": {
+                  "cpuSeconds": 27.0,
+                  "handlesOrFDs": 431,
+                  "pid": 22092,
+                  "rssBytes": 174063616
+                },
+                "experiment": "reactions_http",
+                "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+              },
+              {
+                "requests": 426,
+                "statusCounts": {
+                  "200": 342,
+                  "503": 7,
+                  "0": 77
+                },
+                "p50Ms": 3536.846,
+                "p95Ms": 5561.101,
+                "p99Ms": 5639.944,
+                "successP99Ms": 5280.463,
+                "successRate": 0.8028169014084507,
+                "incorrectSuccesses": 0,
+                "offeredRps": 2000,
+                "offeredSeconds": 4,
+                "offeredRequests": 8000,
+                "clientDropped": 7574,
+                "elapsedSeconds": 7.418445799994515,
+                "achievedSuccessRps": 46.09685401910147,
+                "offeredSuccessRate": 0.04275,
+                "sqlProfile": {
+                  "bitmap_mapping": {
+                    "calls": 458,
+                    "wallMs": 1908.941899833735
+                  },
+                  "counters": {
+                    "calls": 456,
+                    "wallMs": 2091.8015001516324
+                  },
+                  "jobs": {
+                    "calls": 1588,
+                    "wallMs": 7266.628899844363
+                  },
+                  "joins": {
+                    "calls": 291,
+                    "wallMs": 1597.1078000729904
+                  },
+                  "locks": {
+                    "calls": 2028,
+                    "wallMs": 8852.374799520476
+                  },
+                  "other": {
+                    "calls": 1841,
+                    "wallMs": 8164.756499463692
+                  },
+                  "reaction_state": {
+                    "calls": 852,
+                    "wallMs": 3654.230100219138
+                  }
+                },
+                "sqlStatements": 7754,
+                "selectStatements": 4644,
+                "originLoads": 0,
+                "peakSQLPerSecond": 1107,
+                "peakOriginLoadsPerSecond": 0,
+                "cacheEvents": {
+                  "projection_batch:coalesced": 1.0,
+                  "projection_batch:events": 264.0,
+                  "projection_batch:jobs": 261.0,
+                  "reaction:changed": 264.0,
+                  "reaction:unchanged": 82.0
+                },
+                "cacheHitRate": null,
+                "loaderMisses": 0,
+                "coalesced": 0,
+                "coalescingRate": null,
+                "redisClientCalls": 0,
+                "redisClientQps": 0.0,
+                "processResources": {
+                  "cpuSeconds": 34.828125,
+                  "handlesOrFDs": 448,
+                  "pid": 22092,
+                  "rssBytes": 173236224
+                },
+                "experiment": "reactions_http",
+                "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+              }
+            ],
+            "convergenceSecondsAfterProducerStop": 0.26600000000325963,
+            "stateCorrect": true,
+            "serverQuiescent": true,
+            "finalState": {
+              "dislikes": 93,
+              "expectedDislikes": 93,
+              "expectedLikes": 269,
+              "flaskActive": 1,
+              "httpActive": 1,
+              "likes": 269,
+              "pending": 0
+            }
+          }
+        }
+      }
+    },
+    "sharedProcess100ms": {
+      "source": "artifacts/perf/projection-http-v2/summary.json",
+      "sha256": "7512f4563be58d2f0949f78d00fb03ac8b265d997fd4a2ea3124f2fa24b17ef0",
+      "result": {
+        "environment": {
+          "platform": "Windows-11-10.0.26100-SP0",
+          "python": "3.12.5",
+          "cpuLogical": 16,
+          "mysqlBufferPoolMiB": 64,
+          "http": "uvicorn + a2wsgi workers=16; fixture identity, no OIDC cost"
+        },
+        "definitions": {
+          "latency": "scheduled arrival through full HTTP response; includes client scheduling and queue delay",
+          "status0": "timeout",
+          "status-1": "HTTP transport error",
+          "status-2": "bounded generator drop",
+          "source": "isolated synthetic fixtures; no business credentials or traffic"
+        },
+        "results": {
+          "reactions": {
+            "stages": [
+              {
+                "requests": 493,
+                "statusCounts": {
+                  "200": 395,
+                  "503": 18,
+                  "0": 80
+                },
+                "p50Ms": 2967.927,
+                "p95Ms": 5025.125,
+                "p99Ms": 5051.715,
+                "successP99Ms": 5019.589,
+                "successRate": 0.8012170385395537,
+                "incorrectSuccesses": 0,
+                "offeredRps": 200,
+                "offeredSeconds": 4,
+                "offeredRequests": 800,
+                "clientDropped": 307,
+                "elapsedSeconds": 8.925768600020092,
+                "achievedSuccessRps": 44.253482513758705,
+                "offeredSuccessRate": 0.49375,
+                "sqlProfile": {
+                  "bitmap_mapping": {
+                    "calls": 1708,
+                    "wallMs": 6061.093000113033
+                  },
+                  "counters": {
+                    "calls": 555,
+                    "wallMs": 2046.120699873427
+                  },
+                  "jobs": {
+                    "calls": 2092,
+                    "wallMs": 8695.5639005173
+                  },
+                  "joins": {
+                    "calls": 459,
+                    "wallMs": 2034.046600019792
+                  },
+                  "locks": {
+                    "calls": 3766,
+                    "wallMs": 13961.11520047998
+                  },
+                  "other": {
+                    "calls": 2536,
+                    "wallMs": 9841.239600704284
+                  },
+                  "reaction_state": {
+                    "calls": 977,
+                    "wallMs": 3808.404999988852
+                  }
+                },
+                "sqlStatements": 12154,
+                "selectStatements": 7130,
+                "originLoads": 0,
+                "peakSQLPerSecond": 1892,
+                "peakOriginLoadsPerSecond": 0,
+                "cacheEvents": {
+                  "projection_batch:batches": 47.0,
+                  "projection_batch:coalesced": 0.0,
+                  "projection_batch:events": 455.0,
+                  "projection_batch:jobs": 452.0,
+                  "reaction:changed": 459.0
+                },
+                "cacheHitRate": null,
+                "loaderMisses": 0,
+                "coalesced": 0,
+                "coalescingRate": null,
+                "redisClientCalls": 0,
+                "redisClientQps": 0.0,
+                "processResources": {
+                  "cpuSeconds": 11.390625,
+                  "handlesOrFDs": 441,
+                  "pid": 29248,
+                  "rssBytes": 172142592
+                },
+                "experiment": "reactions_http",
+                "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+              },
+              {
+                "requests": 437,
+                "statusCounts": {
+                  "200": 336,
+                  "503": 7,
+                  "0": 94
+                },
+                "p50Ms": 3145.964,
+                "p95Ms": 5366.488,
+                "p99Ms": 6243.758,
+                "successP99Ms": 4994.041,
+                "successRate": 0.7688787185354691,
+                "incorrectSuccesses": 0,
+                "offeredRps": 500,
+                "offeredSeconds": 4,
+                "offeredRequests": 2000,
+                "clientDropped": 1563,
+                "elapsedSeconds": 7.173598900000798,
+                "achievedSuccessRps": 46.8373876435544,
+                "offeredSuccessRate": 0.168,
+                "sqlProfile": {
+                  "bitmap_mapping": {
+                    "calls": 486,
+                    "wallMs": 1961.5416997985449
+                  },
+                  "counters": {
+                    "calls": 429,
+                    "wallMs": 1690.4455998155754
+                  },
+                  "jobs": {
+                    "calls": 1416,
+                    "wallMs": 5925.496499519795
+                  },
+                  "joins": {
+                    "calls": 300,
+                    "wallMs": 1455.2612997649703
+                  },
+                  "locks": {
+                    "calls": 2042,
+                    "wallMs": 7570.2148007112555
+                  },
+                  "other": {
+                    "calls": 1791,
+                    "wallMs": 7047.126700548688
+                  },
+                  "reaction_state": {
+                    "calls": 862,
+                    "wallMs": 3330.0890997925308
+                  }
+                },
+                "sqlStatements": 7571,
+                "selectStatements": 4504,
+                "originLoads": 0,
+                "peakSQLPerSecond": 1146,
+                "peakOriginLoadsPerSecond": 0,
+                "cacheEvents": {
+                  "projection_batch:batches": 42.0,
+                  "projection_batch:coalesced": 1.0,
+                  "projection_batch:events": 271.0,
+                  "projection_batch:jobs": 271.0,
+                  "reaction:changed": 273.0,
+                  "reaction:unchanged": 72.0
+                },
+                "cacheHitRate": null,
+                "loaderMisses": 0,
+                "coalesced": 0,
+                "coalescingRate": null,
+                "redisClientCalls": 0,
+                "redisClientQps": 0.0,
+                "processResources": {
+                  "cpuSeconds": 19.03125,
+                  "handlesOrFDs": 437,
+                  "pid": 29248,
+                  "rssBytes": 172994560
+                },
+                "experiment": "reactions_http",
+                "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+              },
+              {
+                "requests": 459,
+                "statusCounts": {
+                  "200": 380,
+                  "503": 5,
+                  "0": 74
+                },
+                "p50Ms": 3278.834,
+                "p95Ms": 5590.116,
+                "p99Ms": 5737.234,
+                "successP99Ms": 5177.223,
+                "successRate": 0.8278867102396514,
+                "incorrectSuccesses": 0,
+                "offeredRps": 1000,
+                "offeredSeconds": 4,
+                "offeredRequests": 4000,
+                "clientDropped": 3541,
+                "elapsedSeconds": 7.269678799988469,
+                "achievedSuccessRps": 52.26925239921309,
+                "offeredSuccessRate": 0.095,
+                "sqlProfile": {
+                  "bitmap_mapping": {
+                    "calls": 503,
+                    "wallMs": 1799.025899672415
+                  },
+                  "counters": {
+                    "calls": 471,
+                    "wallMs": 1816.4627002261113
+                  },
+                  "jobs": {
+                    "calls": 1542,
+                    "wallMs": 6345.551599282771
+                  },
+                  "joins": {
+                    "calls": 124,
+                    "wallMs": 662.8155999060255
+                  },
+                  "locks": {
+                    "calls": 2252,
+                    "wallMs": 8605.871200677939
+                  },
+                  "other": {
+                    "calls": 1992,
+                    "wallMs": 7477.388900471851
+                  },
+                  "reaction_state": {
+                    "calls": 989,
+                    "wallMs": 3581.424499861896
+                  }
+                },
+                "sqlStatements": 8170,
+                "selectStatements": 4756,
+                "originLoads": 0,
+                "peakSQLPerSecond": 1212,
+                "peakOriginLoadsPerSecond": 0,
+                "cacheEvents": {
+                  "projection_batch:batches": 43.0,
+                  "projection_batch:coalesced": 0.0,
+                  "projection_batch:events": 303.0,
+                  "projection_batch:jobs": 303.0,
+                  "reaction:changed": 310.0,
+                  "reaction:unchanged": 74.0
+                },
+                "cacheHitRate": null,
+                "loaderMisses": 0,
+                "coalesced": 0,
+                "coalescingRate": null,
+                "redisClientCalls": 0,
+                "redisClientQps": 0.0,
+                "processResources": {
+                  "cpuSeconds": 26.671875,
+                  "handlesOrFDs": 443,
+                  "pid": 29248,
+                  "rssBytes": 175132672
+                },
+                "experiment": "reactions_http",
+                "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+              },
+              {
+                "requests": 429,
+                "statusCounts": {
+                  "200": 344,
+                  "503": 6,
+                  "0": 79
+                },
+                "p50Ms": 3388.136,
+                "p95Ms": 5567.857,
+                "p99Ms": 5701.954,
+                "successP99Ms": 5264.278,
+                "successRate": 0.8018648018648019,
+                "incorrectSuccesses": 0,
+                "offeredRps": 2000,
+                "offeredSeconds": 4,
+                "offeredRequests": 8000,
+                "clientDropped": 7571,
+                "elapsedSeconds": 7.222739000018919,
+                "achievedSuccessRps": 47.62193169919356,
+                "offeredSuccessRate": 0.043,
+                "sqlProfile": {
+                  "bitmap_mapping": {
+                    "calls": 434,
+                    "wallMs": 1660.132799996063
+                  },
+                  "counters": {
+                    "calls": 425,
+                    "wallMs": 1991.2504999374505
+                  },
+                  "jobs": {
+                    "calls": 1378,
+                    "wallMs": 6314.191599958576
+                  },
+                  "joins": {
+                    "calls": 287,
+                    "wallMs": 1512.041899812175
+                  },
+                  "locks": {
+                    "calls": 1980,
+                    "wallMs": 8309.247600118397
+                  },
+                  "other": {
+                    "calls": 1773,
+                    "wallMs": 7762.693700438831
+                  },
+                  "reaction_state": {
+                    "calls": 870,
+                    "wallMs": 3946.40669983346
+                  }
+                },
+                "sqlStatements": 7400,
+                "selectStatements": 4411,
+                "originLoads": 0,
+                "peakSQLPerSecond": 1136,
+                "peakOriginLoadsPerSecond": 0,
+                "cacheEvents": {
+                  "projection_batch:batches": 38.0,
+                  "projection_batch:coalesced": 0.0,
+                  "projection_batch:events": 267.0,
+                  "projection_batch:jobs": 265.0,
+                  "reaction:changed": 269.0,
+                  "reaction:unchanged": 79.0
+                },
+                "cacheHitRate": null,
+                "loaderMisses": 0,
+                "coalesced": 0,
+                "coalescingRate": null,
+                "redisClientCalls": 0,
+                "redisClientQps": 0.0,
+                "processResources": {
+                  "cpuSeconds": 34.265625,
+                  "handlesOrFDs": 447,
+                  "pid": 29248,
+                  "rssBytes": 176603136
+                },
+                "experiment": "reactions_http",
+                "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport"
+              }
+            ],
+            "convergenceSecondsAfterProducerStop": 0.5320000000065193,
+            "stateCorrect": true,
+            "serverQuiescent": true,
+            "finalState": {
+              "dislikes": 84,
+              "expectedDislikes": 84,
+              "expectedLikes": 283,
+              "flaskActive": 1,
+              "httpActive": 1,
+              "likes": 283,
+              "pending": 0
+            }
+          }
+        }
+      }
+    },
+    "separateProcessesAB": {
+      "source": "artifacts/perf/projection-http-processes/summary.json",
+      "sha256": "b5b347bd7242338d9d8628e62ead06e475f63feab2dadcf10ca36c3162edb9a6",
+      "result": {
+        "scalar": {
+          "stages": [
+            {
+              "requests": 570,
+              "statusCounts": {
+                "200": 563,
+                "503": 7
+              },
+              "p50Ms": 2237.496,
+              "p95Ms": 4148.682,
+              "p99Ms": 4381.766,
+              "successP99Ms": 4381.766,
+              "successRate": 0.987719298245614,
+              "incorrectSuccesses": 0,
+              "offeredRps": 200,
+              "offeredSeconds": 4,
+              "offeredRequests": 800,
+              "clientDropped": 230,
+              "elapsedSeconds": 8.397711900004651,
+              "achievedSuccessRps": 67.04140070845648,
+              "offeredSuccessRate": 0.70375,
+              "sqlProfile": {
+                "bitmap_mapping": {
+                  "calls": 1919,
+                  "wallMs": 4499.579399940558
+                },
+                "counters": {
+                  "calls": 563,
+                  "wallMs": 1592.84819997265
+                },
+                "jobs": {
+                  "calls": 1689,
+                  "wallMs": 5092.918600246776
+                },
+                "joins": {
+                  "calls": 563,
+                  "wallMs": 1979.7620999452192
+                },
+                "locks": {
+                  "calls": 4282,
+                  "wallMs": 11388.240300206235
+                },
+                "other": {
+                  "calls": 2815,
+                  "wallMs": 7677.057600114495
+                },
+                "reaction_state": {
+                  "calls": 1237,
+                  "wallMs": 3829.7504996007774
+                }
+              },
+              "sqlStatements": 13179,
+              "selectStatements": 7660,
+              "originLoads": 0,
+              "peakSQLPerSecond": 2024,
+              "peakOriginLoadsPerSecond": 0,
+              "cacheEvents": {
+                "reaction:changed": 563.0
+              },
+              "cacheHitRate": null,
+              "loaderMisses": 0,
+              "coalesced": 0,
+              "coalescingRate": null,
+              "redisClientCalls": 0,
+              "redisClientQps": 0.0,
+              "processResources": {
+                "cpuSeconds": 10.640625,
+                "handlesOrFDs": 416,
+                "pid": 29024,
+                "rssBytes": 168091648
+              },
+              "experiment": "reactions_http",
+              "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport",
+              "consumerPlacement": "processes",
+              "consumerMode": "scalar",
+              "sqlMetricScope": "HTTP process only"
+            },
+            {
+              "requests": 466,
+              "statusCounts": {
+                "200": 429,
+                "503": 6,
+                "0": 31
+              },
+              "p50Ms": 3272.187,
+              "p95Ms": 5972.824,
+              "p99Ms": 6551.939,
+              "successP99Ms": 5967.089,
+              "successRate": 0.9206008583690987,
+              "incorrectSuccesses": 0,
+              "offeredRps": 500,
+              "offeredSeconds": 4,
+              "offeredRequests": 2000,
+              "clientDropped": 1534,
+              "elapsedSeconds": 8.085670299973572,
+              "achievedSuccessRps": 53.05555407495838,
+              "offeredSuccessRate": 0.2145,
+              "sqlProfile": {
+                "bitmap_mapping": {
+                  "calls": 478,
+                  "wallMs": 1602.7245999721345
+                },
+                "counters": {
+                  "calls": 439,
+                  "wallMs": 1785.6581999512855
+                },
+                "jobs": {
+                  "calls": 846,
+                  "wallMs": 4098.786800517701
+                },
+                "joins": {
+                  "calls": 393,
+                  "wallMs": 2039.220199949341
+                },
+                "locks": {
+                  "calls": 2032,
+                  "wallMs": 7931.210100563476
+                },
+                "other": {
+                  "calls": 1881,
+                  "wallMs": 7106.867799797328
+                },
+                "reaction_state": {
+                  "calls": 997,
+                  "wallMs": 3845.6221001397353
+                }
+              },
+              "sqlStatements": 7342,
+              "selectStatements": 4470,
+              "originLoads": 0,
+              "peakSQLPerSecond": 1052,
+              "peakOriginLoadsPerSecond": 0,
+              "cacheEvents": {
+                "reaction:changed": 282.0,
+                "reaction:unchanged": 157.0
+              },
+              "cacheHitRate": null,
+              "loaderMisses": 0,
+              "coalesced": 0,
+              "coalescingRate": null,
+              "redisClientCalls": 0,
+              "redisClientQps": 0.0,
+              "processResources": {
+                "cpuSeconds": 18.328125,
+                "handlesOrFDs": 428,
+                "pid": 29024,
+                "rssBytes": 168841216
+              },
+              "experiment": "reactions_http",
+              "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport",
+              "consumerPlacement": "processes",
+              "consumerMode": "scalar",
+              "sqlMetricScope": "HTTP process only"
+            },
+            {
+              "requests": 453,
+              "statusCounts": {
+                "200": 441,
+                "503": 11,
+                "-1": 1
+              },
+              "p50Ms": 3625.409,
+              "p95Ms": 9031.678,
+              "p99Ms": 9744.633,
+              "successP99Ms": 9744.633,
+              "successRate": 0.9735099337748344,
+              "incorrectSuccesses": 0,
+              "offeredRps": 1000,
+              "offeredSeconds": 4,
+              "offeredRequests": 4000,
+              "clientDropped": 3547,
+              "elapsedSeconds": 10.026308400003472,
+              "achievedSuccessRps": 43.9826099741549,
+              "offeredSuccessRate": 0.11025,
+              "sqlProfile": {
+                "bitmap_mapping": {
+                  "calls": 486,
+                  "wallMs": 1181.9285997771658
+                },
+                "counters": {
+                  "calls": 441,
+                  "wallMs": 1076.0613003803883
+                },
+                "jobs": {
+                  "calls": 1149,
+                  "wallMs": 3792.324600275606
+                },
+                "joins": {
+                  "calls": 123,
+                  "wallMs": 417.09989999071695
+                },
+                "locks": {
+                  "calls": 2444,
+                  "wallMs": 6736.815400217893
+                },
+                "other": {
+                  "calls": 2089,
+                  "wallMs": 5904.148399451515
+                },
+                "reaction_state": {
+                  "calls": 1194,
+                  "wallMs": 3586.3964001182467
+                }
+              },
+              "sqlStatements": 8296,
+              "selectStatements": 4716,
+              "originLoads": 0,
+              "peakSQLPerSecond": 1209,
+              "peakOriginLoadsPerSecond": 0,
+              "cacheEvents": {
+                "reaction:changed": 383.0,
+                "reaction:unchanged": 58.0
+              },
+              "cacheHitRate": null,
+              "loaderMisses": 0,
+              "coalesced": 0,
+              "coalescingRate": null,
+              "redisClientCalls": 0,
+              "redisClientQps": 0.0,
+              "processResources": {
+                "cpuSeconds": 26.015625,
+                "handlesOrFDs": 424,
+                "pid": 29024,
+                "rssBytes": 164454400
+              },
+              "experiment": "reactions_http",
+              "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport",
+              "consumerPlacement": "processes",
+              "consumerMode": "scalar",
+              "sqlMetricScope": "HTTP process only"
+            },
+            {
+              "requests": 444,
+              "statusCounts": {
+                "200": 388,
+                "503": 6,
+                "0": 50
+              },
+              "p50Ms": 3628.813,
+              "p95Ms": 5815.835,
+              "p99Ms": 5994.179,
+              "successP99Ms": 5450.474,
+              "successRate": 0.8738738738738738,
+              "incorrectSuccesses": 0,
+              "offeredRps": 2000,
+              "offeredSeconds": 4,
+              "offeredRequests": 8000,
+              "clientDropped": 7556,
+              "elapsedSeconds": 7.672464100003708,
+              "achievedSuccessRps": 50.56519639237801,
+              "offeredSuccessRate": 0.0485,
+              "sqlProfile": {
+                "bitmap_mapping": {
+                  "calls": 433,
+                  "wallMs": 1542.32209987822
+                },
+                "counters": {
+                  "calls": 391,
+                  "wallMs": 1421.6383995080832
+                },
+                "jobs": {
+                  "calls": 915,
+                  "wallMs": 4288.542099762708
+                },
+                "joins": {
+                  "calls": 329,
+                  "wallMs": 1734.1682002006564
+                },
+                "locks": {
+                  "calls": 2030,
+                  "wallMs": 8222.39220069605
+                },
+                "other": {
+                  "calls": 1783,
+                  "wallMs": 7109.474700060673
+                },
+                "reaction_state": {
+                  "calls": 990,
+                  "wallMs": 4073.2186994573567
+                }
+              },
+              "sqlStatements": 7165,
+              "selectStatements": 4231,
+              "originLoads": 0,
+              "peakSQLPerSecond": 1060,
+              "peakOriginLoadsPerSecond": 0,
+              "cacheEvents": {
+                "reaction:changed": 305.0,
+                "reaction:unchanged": 86.0
+              },
+              "cacheHitRate": null,
+              "loaderMisses": 0,
+              "coalesced": 0,
+              "coalescingRate": null,
+              "redisClientCalls": 0,
+              "redisClientQps": 0.0,
+              "processResources": {
+                "cpuSeconds": 33.234375,
+                "handlesOrFDs": 411,
+                "pid": 29024,
+                "rssBytes": 168189952
+              },
+              "experiment": "reactions_http",
+              "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport",
+              "consumerPlacement": "processes",
+              "consumerMode": "scalar",
+              "sqlMetricScope": "HTTP process only"
+            }
+          ],
+          "convergenceSecondsAfterProducerStop": 3.860000000015134,
+          "stateCorrect": true,
+          "serverQuiescent": true,
+          "finalState": {
+            "dislikes": 94,
+            "expectedDislikes": 94,
+            "expectedLikes": 287,
+            "flaskActive": 1,
+            "httpActive": 1,
+            "likes": 287,
+            "pending": 0
+          }
+        },
+        "batch": {
+          "stages": [
+            {
+              "requests": 561,
+              "statusCounts": {
+                "200": 552,
+                "503": 9
+              },
+              "p50Ms": 2281.756,
+              "p95Ms": 3529.332,
+              "p99Ms": 3773.558,
+              "successP99Ms": 3773.558,
+              "successRate": 0.983957219251337,
+              "incorrectSuccesses": 0,
+              "offeredRps": 200,
+              "offeredSeconds": 4,
+              "offeredRequests": 800,
+              "clientDropped": 239,
+              "elapsedSeconds": 7.80271210000501,
+              "achievedSuccessRps": 70.74401052944532,
+              "offeredSuccessRate": 0.69,
+              "sqlProfile": {
+                "bitmap_mapping": {
+                  "calls": 1884,
+                  "wallMs": 4292.175999900792
+                },
+                "counters": {
+                  "calls": 552,
+                  "wallMs": 1412.4696002400015
+                },
+                "jobs": {
+                  "calls": 1656,
+                  "wallMs": 4712.227499403525
+                },
+                "joins": {
+                  "calls": 552,
+                  "wallMs": 1698.6029000836425
+                },
+                "locks": {
+                  "calls": 4200,
+                  "wallMs": 10737.700099067297
+                },
+                "other": {
+                  "calls": 2760,
+                  "wallMs": 7203.065199835692
+                },
+                "reaction_state": {
+                  "calls": 1212,
+                  "wallMs": 3449.912199663231
+                }
+              },
+              "sqlStatements": 12924,
+              "selectStatements": 7512,
+              "originLoads": 0,
+              "peakSQLPerSecond": 2048,
+              "peakOriginLoadsPerSecond": 0,
+              "cacheEvents": {
+                "reaction:changed": 552.0
+              },
+              "cacheHitRate": null,
+              "loaderMisses": 0,
+              "coalesced": 0,
+              "coalescingRate": null,
+              "redisClientCalls": 0,
+              "redisClientQps": 0.0,
+              "processResources": {
+                "cpuSeconds": 10.1875,
+                "handlesOrFDs": 418,
+                "pid": 29128,
+                "rssBytes": 167923712
+              },
+              "experiment": "reactions_http",
+              "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport",
+              "consumerPlacement": "processes",
+              "consumerMode": "batch",
+              "sqlMetricScope": "HTTP process only"
+            },
+            {
+              "requests": 482,
+              "statusCounts": {
+                "200": 432,
+                "503": 2,
+                "0": 48
+              },
+              "p50Ms": 3099.712,
+              "p95Ms": 5427.478,
+              "p99Ms": 5653.815,
+              "successP99Ms": 5179.397,
+              "successRate": 0.8962655601659751,
+              "incorrectSuccesses": 0,
+              "offeredRps": 500,
+              "offeredSeconds": 4,
+              "offeredRequests": 2000,
+              "clientDropped": 1518,
+              "elapsedSeconds": 7.376267700019525,
+              "achievedSuccessRps": 58.56476708093357,
+              "offeredSuccessRate": 0.216,
+              "sqlProfile": {
+                "bitmap_mapping": {
+                  "calls": 517,
+                  "wallMs": 1865.728600154398
+                },
+                "counters": {
+                  "calls": 442,
+                  "wallMs": 1613.5520997922868
+                },
+                "jobs": {
+                  "calls": 888,
+                  "wallMs": 3373.836399463471
+                },
+                "joins": {
+                  "calls": 384,
+                  "wallMs": 1751.6872000996955
+                },
+                "locks": {
+                  "calls": 2118,
+                  "wallMs": 7385.918500833213
+                },
+                "other": {
+                  "calls": 1918,
+                  "wallMs": 6776.616499904776
+                },
+                "reaction_state": {
+                  "calls": 1016,
+                  "wallMs": 3774.59689983516
+                }
+              },
+              "sqlStatements": 7561,
+              "selectStatements": 4573,
+              "originLoads": 0,
+              "peakSQLPerSecond": 1150,
+              "peakOriginLoadsPerSecond": 0,
+              "cacheEvents": {
+                "reaction:changed": 296.0,
+                "reaction:unchanged": 146.0
+              },
+              "cacheHitRate": null,
+              "loaderMisses": 0,
+              "coalesced": 0,
+              "coalescingRate": null,
+              "redisClientCalls": 0,
+              "redisClientQps": 0.0,
+              "processResources": {
+                "cpuSeconds": 17.8125,
+                "handlesOrFDs": 430,
+                "pid": 29128,
+                "rssBytes": 168730624
+              },
+              "experiment": "reactions_http",
+              "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport",
+              "consumerPlacement": "processes",
+              "consumerMode": "batch",
+              "sqlMetricScope": "HTTP process only"
+            },
+            {
+              "requests": 454,
+              "statusCounts": {
+                "200": 451,
+                "503": 2,
+                "-1": 1
+              },
+              "p50Ms": 3624.116,
+              "p95Ms": 9223.891,
+              "p99Ms": 9596.677,
+              "successP99Ms": 9596.677,
+              "successRate": 0.9933920704845814,
+              "incorrectSuccesses": 0,
+              "offeredRps": 1000,
+              "offeredSeconds": 4,
+              "offeredRequests": 4000,
+              "clientDropped": 3546,
+              "elapsedSeconds": 9.939329099986935,
+              "achievedSuccessRps": 45.373894523177654,
+              "offeredSuccessRate": 0.11275,
+              "sqlProfile": {
+                "bitmap_mapping": {
+                  "calls": 493,
+                  "wallMs": 1140.7099002681207
+                },
+                "counters": {
+                  "calls": 451,
+                  "wallMs": 1212.196399748791
+                },
+                "jobs": {
+                  "calls": 1209,
+                  "wallMs": 3800.6193999317475
+                },
+                "joins": {
+                  "calls": 135,
+                  "wallMs": 405.28569993330166
+                },
+                "locks": {
+                  "calls": 2542,
+                  "wallMs": 6595.082998916041
+                },
+                "other": {
+                  "calls": 2159,
+                  "wallMs": 5733.642200182658
+                },
+                "reaction_state": {
+                  "calls": 1244,
+                  "wallMs": 3396.792400366394
+                }
+              },
+              "sqlStatements": 8623,
+              "selectStatements": 4885,
+              "originLoads": 0,
+              "peakSQLPerSecond": 1273,
+              "peakOriginLoadsPerSecond": 0,
+              "cacheEvents": {
+                "reaction:changed": 403.0,
+                "reaction:unchanged": 48.0
+              },
+              "cacheHitRate": null,
+              "loaderMisses": 0,
+              "coalesced": 0,
+              "coalescingRate": null,
+              "redisClientCalls": 0,
+              "redisClientQps": 0.0,
+              "processResources": {
+                "cpuSeconds": 25.4375,
+                "handlesOrFDs": 427,
+                "pid": 29128,
+                "rssBytes": 168239104
+              },
+              "experiment": "reactions_http",
+              "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport",
+              "consumerPlacement": "processes",
+              "consumerMode": "batch",
+              "sqlMetricScope": "HTTP process only"
+            },
+            {
+              "requests": 492,
+              "statusCounts": {
+                "200": 430,
+                "503": 8,
+                "0": 54
+              },
+              "p50Ms": 3292.846,
+              "p95Ms": 5647.771,
+              "p99Ms": 5815.27,
+              "successP99Ms": 5134.013,
+              "successRate": 0.8739837398373984,
+              "incorrectSuccesses": 0,
+              "offeredRps": 2000,
+              "offeredSeconds": 4,
+              "offeredRequests": 8000,
+              "clientDropped": 7508,
+              "elapsedSeconds": 7.429069900012109,
+              "achievedSuccessRps": 57.87540829750324,
+              "offeredSuccessRate": 0.05375,
+              "sqlProfile": {
+                "bitmap_mapping": {
+                  "calls": 474,
+                  "wallMs": 1599.8037002864294
+                },
+                "counters": {
+                  "calls": 441,
+                  "wallMs": 1617.317599710077
+                },
+                "jobs": {
+                  "calls": 972,
+                  "wallMs": 3867.2622008016333
+                },
+                "joins": {
+                  "calls": 362,
+                  "wallMs": 1548.7263999530114
+                },
+                "locks": {
+                  "calls": 2200,
+                  "wallMs": 7549.7093001322355
+                },
+                "other": {
+                  "calls": 1971,
+                  "wallMs": 7114.733099471778
+                },
+                "reaction_state": {
+                  "calls": 1084,
+                  "wallMs": 3949.617100326577
+                }
+              },
+              "sqlStatements": 7823,
+              "selectStatements": 4656,
+              "originLoads": 0,
+              "peakSQLPerSecond": 1153,
+              "peakOriginLoadsPerSecond": 0,
+              "cacheEvents": {
+                "reaction:changed": 324.0,
+                "reaction:unchanged": 117.0
+              },
+              "cacheHitRate": null,
+              "loaderMisses": 0,
+              "coalesced": 0,
+              "coalescingRate": null,
+              "redisClientCalls": 0,
+              "redisClientQps": 0.0,
+              "processResources": {
+                "cpuSeconds": 33.171875,
+                "handlesOrFDs": 422,
+                "pid": 29128,
+                "rssBytes": 168771584
+              },
+              "experiment": "reactions_http",
+              "scope": "real ReactionService SQL, SQL projection workers=2, Redis Bitmap; excludes Kafka transport",
+              "consumerPlacement": "processes",
+              "consumerMode": "batch",
+              "sqlMetricScope": "HTTP process only"
+            }
+          ],
+          "convergenceSecondsAfterProducerStop": 0.264999999984866,
+          "stateCorrect": true,
+          "serverQuiescent": true,
+          "finalState": {
+            "dislikes": 90,
+            "expectedDislikes": 90,
+            "expectedLikes": 274,
+            "flaskActive": 1,
+            "httpActive": 1,
+            "likes": 274,
+            "pending": 0
+          }
+        }
+      }
+    }
+  },
+  "rawEvidence": [
+    {
+      "source": "artifacts/perf/projection-http/raw-reaction-1000.json",
+      "sha256": "4286a32650fa2d923ad0ca9828f4a44d47a13cccefcff5bf9d0fe315875f2678"
+    },
+    {
+      "source": "artifacts/perf/projection-http/raw-reaction-200.json",
+      "sha256": "b42c5efee41b73abb3108e2d201c8efb9bed8a5666c14910830f6906962918b2"
+    },
+    {
+      "source": "artifacts/perf/projection-http/raw-reaction-2000.json",
+      "sha256": "4f956f6a82155cf6be1885ff8a6970ff605efe5769f617e21bd4cc54f19a640b"
+    },
+    {
+      "source": "artifacts/perf/projection-http/raw-reaction-500.json",
+      "sha256": "cc06743edf0aeec37272258893ed4a7546d4110e361aa8a183faafb3aab44ef3"
+    },
+    {
+      "source": "artifacts/perf/projection-http-v2/raw-reaction-1000.json",
+      "sha256": "a98721d8449ab4cc46f1fe759dcc9a83118ac22a10a7b3784c48bfff9c3973f5"
+    },
+    {
+      "source": "artifacts/perf/projection-http-v2/raw-reaction-200.json",
+      "sha256": "faa674c6da3bf2249cd82c25fad504c3f9afa25d9bb01d5a2517f8e910f44c32"
+    },
+    {
+      "source": "artifacts/perf/projection-http-v2/raw-reaction-2000.json",
+      "sha256": "fc1de0d38648c06cec03dd62aae2dd24743d1969a4f63aad45f6ffdd24778bea"
+    },
+    {
+      "source": "artifacts/perf/projection-http-v2/raw-reaction-500.json",
+      "sha256": "f85fd4e2f8da9abad2674ad46e5dae04e076961b74ac07855c13b83d0b925279"
+    },
+    {
+      "source": "artifacts/perf/projection-http-processes/scalar/raw-reaction-1000.json",
+      "sha256": "be7addbb8d772bdca7bfab0e051558a276b6491b5b519205fd21f44d0078c8d3"
+    },
+    {
+      "source": "artifacts/perf/projection-http-processes/scalar/raw-reaction-200.json",
+      "sha256": "dce77c35aa35554fcabbade1950b5d79dbca4262f7e42221e6984fa7e34169c9"
+    },
+    {
+      "source": "artifacts/perf/projection-http-processes/scalar/raw-reaction-2000.json",
+      "sha256": "87d4468522fcb8566245353120d0b0714ff6c847fcd8e27515df3989e7ea6236"
+    },
+    {
+      "source": "artifacts/perf/projection-http-processes/scalar/raw-reaction-500.json",
+      "sha256": "f2e6b5945ea30db284b5b0aa89fbb7b4124e4d80f62916dfef11ea158cc422b6"
+    },
+    {
+      "source": "artifacts/perf/projection-http-processes/batch/raw-reaction-1000.json",
+      "sha256": "858217ffa1a527b80b619b1d9c53d2612ef71366e8854ff79d0789820b933349"
+    },
+    {
+      "source": "artifacts/perf/projection-http-processes/batch/raw-reaction-200.json",
+      "sha256": "2ea7cbf51799b2b7bb3177cab7e2da6f35bd65f2812fb9c9cdd98fc808bea858"
+    },
+    {
+      "source": "artifacts/perf/projection-http-processes/batch/raw-reaction-2000.json",
+      "sha256": "e4a2ea1edb6186eb4627b4f9c6287d1b572a1eab02b3169436c9a1d922ab2ae0"
+    },
+    {
+      "source": "artifacts/perf/projection-http-processes/batch/raw-reaction-500.json",
+      "sha256": "bee661a7b470a5eb301f17a4027eda0a851a996b0eb570f3e9dc51f3915d0c38"
+    }
+  ],
+  "verification": {
+    "pr": {
+      "source": "artifacts/quality/pr.xml",
+      "sha256": "676aba72d73d1de4a6f3f484b887a2992038094a02ecf5ea8d97f4c6521defc5",
+      "result": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "360",
+        "time": "150.104",
+        "timestamp": "2026-10-25T21:34:41.379937+08:00",
+        "hostname": "PC-20251005ADRE"
+      }
+    },
+    "capacity-remediation-mysql": {
+      "source": "artifacts/quality/capacity-remediation-mysql.xml",
+      "sha256": "eda6e618edaaef0f0c454230bceb669fdaeb46d8052e1f4c1a9907ce7d7ecb20",
+      "result": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "20",
+        "time": "10.332",
+        "timestamp": "2026-10-25T21:34:50.250118+08:00",
+        "hostname": "PC-20251005ADRE"
+      }
+    },
+    "capacity-remediation-kafka": {
+      "source": "artifacts/quality/capacity-remediation-kafka.xml",
+      "sha256": "c3bd314d3ff22dd42cdd3c49b67d0b86a347e8392a11e74f43b40048bf280f23",
+      "result": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "9",
+        "time": "116.347",
+        "timestamp": "2026-10-25T21:35:06.030461+08:00",
+        "hostname": "PC-20251005ADRE"
+      }
+    },
+    "prGateExitCode": 0,
+    "mysqlKafkaExitCode": 0,
+    "mainExecuted": false
+  }
+}

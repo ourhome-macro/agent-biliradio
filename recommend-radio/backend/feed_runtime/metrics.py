@@ -8,5 +8,5 @@ BYTES = Counter("radio_media_bytes_total", "Media bytes by path", ("path",))
 ACTIVE = Gauge("radio_media_active_imports", "Media import processes", multiprocess_mode="livesum")
 
 
-def count(operation: str, outcome: str = "success") -> None:
-    OPERATIONS.labels(operation, outcome).inc()
+def count(operation: str, outcome: str = "success", amount: int = 1) -> None:
+    OPERATIONS.labels(operation, outcome).inc(amount)

@@ -44,7 +44,7 @@ redis.call('xclaim',KEYS[1],ARGV[1],ARGV[3],0,ARGV[2],'JUSTID');return 1
 def lane_for(kind):
     return (
         "media"
-        if kind == "media_import"
+        if kind in {"media_import", "ugc_audio"}
         else "events"
         if kind in {"behavior", "sse", "feed_projection", "feed_asset_ready"}
         else "jobs"

@@ -36,13 +36,15 @@ class ResourcePolicy:
             if not (action == "read" and row["status"] == "draft" and row["owner_id"] == user_id):
                 return False
         kind = row["resource_kind"] if "resource_kind" in keys else "video"
-        if action in {"feed", "play"} and kind != "video":
+        if action in {"feed", "play"} and kind not in {"video", "audio"}:
             return False
         if action == "share" and row["scope"] != "public":
             return False
         return True
 
-    def resolve_many(self, user_id, ids, *, action="read", include_private=True, conn=None):
+    def resolve_many(
+        self, user_id, ids, *, action="read", include_private=True, conn=None, feed_rows=None
+    ):
         identifiers = list(dict.fromkeys(str(value) for value in ids))
         if len(identifiers) > 500:
             raise APIError.validation_error("Resolve at most 500 resources per batch")
@@ -56,6 +58,7 @@ class ResourcePolicy:
                     action=action,
                     include_private=include_private,
                     conn=connection,
+                    feed_rows=feed_rows,
                 )
         loaded, visited, queue = {}, set(), identifiers
         # Referenced media can have its own visibility. Read those live facts too.
@@ -63,19 +66,35 @@ class ResourcePolicy:
             if not queue:
                 break
             visited.update(queue)
+            extra_fields = (
+                ",a.manifest_json,r.state AS reaction,r.version AS reaction_version,"
+                "k.likes,k.dislikes,k.version AS counter_version"
+                if feed_rows is not None
+                else ""
+            )
+            extra_joins = (
+                " LEFT JOIN content_reactions r ON r.content_id=c.content_id AND r.user_id=?"
+                " LEFT JOIN content_counters k ON k.content_id=c.content_id"
+                if feed_rows is not None
+                else ""
+            )
             rows = conn.execute(
                 """SELECT c.*,p.author_id AS post_author,p.kind AS post_kind,p.title AS post_title,
                 p.body AS post_body,p.status AS post_status,p.visibility AS post_visibility,
                 p.version AS post_version,p.permission_version AS post_permission_version,
                 p.media_source_content_id,p.media_asset_id,p.created_at AS post_created_at,
-                p.updated_at AS post_updated_at,p.published_at AS post_published_at,
-                a.status AS asset_status,l.asset_id AS linked_asset_id
+                p.updated_at AS post_updated_at,p.published_at AS post_published_at,p.audio_upload_id,
+                a.status AS asset_status,l.asset_id AS linked_asset_id"""
+                + extra_fields
+                + """
                 FROM feed_content c LEFT JOIN ugc_posts p ON p.content_id=c.content_id
                 LEFT JOIN content_media_links l ON l.content_id=c.content_id
-                LEFT JOIN media_assets a ON a.asset_id=l.asset_id WHERE c.content_id IN ("""
+                LEFT JOIN media_assets a ON a.asset_id=l.asset_id"""
+                + extra_joins
+                + " WHERE c.content_id IN ("
                 + ",".join("?" for _ in queue)
                 + ")",
-                tuple(queue),
+                ((user_id,) if feed_rows is not None else ()) + tuple(queue),
             ).fetchall()
             queue = []
             for value in rows:
@@ -107,6 +126,15 @@ class ResourcePolicy:
                     return False
                 if row["post_visibility"] != "public" and row["post_author"] != user_id:
                     return False
+                if (
+                    row["post_kind"] == "audio"
+                    and operation in {"play", "feed"}
+                    and (
+                        row["asset_status"] != "ready"
+                        or row["media_asset_id"] != row["linked_asset_id"]
+                    )
+                ):
+                    return False
                 if row["post_kind"] == "video" and not (
                     operation == "read" and row["post_author"] == user_id
                 ):
@@ -120,6 +148,10 @@ class ResourcePolicy:
             return True
 
         output = {}
+        if feed_rows is not None:
+            # Internal material only. Possession of a row never grants visibility;
+            # callers must pair it with the authorized DTO map returned below.
+            feed_rows.update(loaded)
         for content_id in identifiers:
             row = loaded.get(content_id)
             if not row or not allowed(row, action):
@@ -152,6 +184,7 @@ class ResourcePolicy:
                 "assetId": row["linked_asset_id"],
                 "assetStatus": row["asset_status"] or "empty",
                 "mediaSourceContentId": row["media_source_content_id"],
+                "audioUploadId": row["audio_upload_id"],
                 "createdAt": row["post_created_at"] if post else row["admitted_at"],
                 "updatedAt": row["post_updated_at"] if post else row["admitted_at"],
                 "publishedAt": row["post_published_at"] if post else row["admitted_at"],

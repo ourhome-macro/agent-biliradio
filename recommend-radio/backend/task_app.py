@@ -76,12 +76,12 @@ def publish_job(job_id: str, kind: str) -> None:
 
     from agent_memory_runtime.telemetry import carrier, span
     setup('radio-outbox')
-    queue = "radio.media.v1" if kind == "media_import" else "radio.events.v2" if kind in {"behavior", "sse", "feed_projection", "feed_asset_ready"} else "radio.jobs.v2"
+    queue = "radio.media.v1" if kind in {"media_import", "ugc_audio"} else "radio.events.v2" if kind in {"behavior", "sse", "feed_projection", "feed_asset_ready"} else "radio.jobs.v2"
     with get_connection() as conn:
         row = conn.execute('SELECT trace_context FROM durable_jobs WHERE job_id=?', (job_id,)).fetchone()
     parent = json.loads(row['trace_context']) if row else {}
     with span('messaging.publish', parent=parent, attributes={'job.kind':kind,'job.id':job_id}):
-        task = execute_media_job if kind == "media_import" else execute_job
+        task = execute_media_job if kind in {"media_import", "ugc_audio"} else execute_job
         task.apply_async(args=[job_id], task_id=job_id, queue=queue,
                          routing_key=queue, delivery_mode=2, headers=carrier())
 
@@ -236,28 +236,25 @@ def dispatch(job: dict, db_path=None):
         from following.sync import execute_sync, probe
         return probe(service, job, payload) if job["kind"] == "creator_follow_probe" else execute_sync(service, job, payload)
     payload = json.loads(job["payload_json"])
-    if job["kind"] in {"media_import", "feed_projection", "feed_asset_ready"}:
+    if job['kind']=='feed_projection':
+        from feed_runtime.projection_batch import execute
+        return execute(resolved_db,job)
+    if job['kind'] == 'media_import':
+        from job_errors import JobPermanentFailure
+        with get_connection(resolved_db) as conn:
+            conn.execute("UPDATE media_import_jobs SET status='cancelled',stage='cancelled',"
+                         "error_type='BilibiliUsesProxy',updated_at=? WHERE import_id=? "
+                         "AND (status='queued' OR (status='running' AND lease_until<=?))",
+                         (time.time(), payload['import_id'], time.time()))
+        raise JobPermanentFailure('Bilibili playback uses on-demand proxy; import is disabled')
+    if job['kind'] == 'ugc_audio':
         from feed_runtime.config import FeedConfig
-        from feed_runtime.services import FeedServices
-        data_dir = DATA_DIR if mysql_target(resolved_db) else Path(resolved_db).parent
-        config = FeedConfig.from_env(data_dir=data_dir)
-        if job["kind"] == "media_import" and not config.enabled:
-            from job_errors import JobPermanentFailure
-            with get_connection(resolved_db) as conn:
-                acquired = conn.execute("SELECT complete_source FROM media_import_jobs WHERE import_id=?",
-                                        (payload["import_id"],)).fetchone()
-                conn.execute("""UPDATE media_import_jobs SET status='cancelled',stage='cancelled',
-                    error_type='FeedDisabled',updated_at=? WHERE import_id=? AND complete_source=0
-                    AND (status='queued' OR (status='running' AND lease_until<=?))""",
-                    (time.time(),payload["import_id"],time.time()))
-            if not acquired or not acquired["complete_source"]:
-                raise JobPermanentFailure("Feed is disabled; no new imports are executed")
-        runtime = FeedServices(user_id=job["user_id"], db_path=resolved_db, config=config)
-        if job["kind"] == "media_import":
-            from feed_runtime.worker import MediaWorker
-            return MediaWorker(runtime.repo, config, runtime.storage).run(payload["import_id"], transport_job=job)
-        if job["kind"] == "feed_projection":
-            return runtime.reactions.project(payload)
+        from feed_runtime.services import resources
+        from ugc.audio_worker import AudioWorker
+        config = FeedConfig.from_env(data_dir=Path(resolved_db).parent if not mysql_target(resolved_db) else DATA_DIR)
+        _cache, storage = resources(config, resolved_db)
+        return AudioWorker(resolved_db, config, storage).run(payload['upload_id'], job)
+    if job["kind"] == "feed_asset_ready":
         # Source content, not private preference memory, gets a semantic projection.
         from content_embeddings import ContentEmbeddingService
         from models import Track

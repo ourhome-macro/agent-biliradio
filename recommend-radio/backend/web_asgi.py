@@ -15,6 +15,7 @@ from app import oidc_auth
 from database import DEFAULT_DB_PATH
 from sse_event_store import PAGE_SIZE, latest_event_id, list_events_after, prune_events
 from starlette.requests import Request
+from starlette.background import BackgroundTask
 from starlette.responses import FileResponse, JSONResponse, StreamingResponse, RedirectResponse, Response
 
 FRONTEND_ROOT = Path(
@@ -50,7 +51,13 @@ class RadioASGI:
         if path == "/api/agent/events":
             response = await self._stream(Request(scope, receive=receive))
         elif path.startswith("/api/media/streams/"):
-            response = await self._media(Request(scope, receive=receive))
+            from feed_runtime.admission import media_admission
+            from error_code import APIError
+            try:
+                with media_admission():
+                    response = await self._media(Request(scope, receive=receive))
+            except APIError as error:
+                response = JSONResponse({'error':error.message},status_code=error.status_code)
         elif path.startswith("/api/") or path.startswith("/health/") or path == "/metrics":
             await self.flask_app(scope, receive, send)
             return
@@ -79,13 +86,36 @@ class RadioASGI:
         try:
             runtime=await asyncio.to_thread(FeedServices,user_id=str(user["id"]),db_path=self.db_path)
             result=await asyncio.to_thread(runtime.media.stream_file,parts[4],str(user["id"]),parts[5],
-                expected_generation=request.query_params.get("v"))
+                expected_generation=request.query_params.get("v"), range_header=request.headers.get('range'),
+                method=request.method)
         except APIError as error:
             return JSONResponse({"error":error.message},status_code=error.status_code)
         except Exception as error:
             LOGGER.warning("Media response failed: %s",type(error).__name__)
             return JSONResponse({"error":"media temporarily unavailable"},status_code=503)
         headers={"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}
+        if 'upstream' in result:
+            upstream, close = result['upstream'], result['close']
+            for name in ('Content-Length', 'Content-Range', 'Accept-Ranges', 'ETag', 'Last-Modified'):
+                if upstream.headers.get(name):
+                    headers[name] = upstream.headers[name]
+            if request.method == 'HEAD':
+                close()
+                return Response(status_code=upstream.status_code, media_type=result['mime'], headers=headers)
+            async def chunks():
+                try:
+                    iterator = iter(upstream.iter_content(chunk_size=64*1024))
+                    while True:
+                        chunk = await asyncio.to_thread(next, iterator, None)
+                        if chunk is None:
+                            break
+                        if chunk:
+                            yield chunk
+                finally:
+                    close()
+            return StreamingResponse(chunks(), status_code=upstream.status_code,
+                                     media_type=result['mime'], headers=headers,
+                                     background=BackgroundTask(close))
         if "redirect" in result:
             return RedirectResponse(result["redirect"],status_code=307,headers=headers)
         if "text" in result:

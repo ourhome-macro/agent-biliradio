@@ -17,7 +17,7 @@ from database import get_connection
 def lane_for(kind):
     return (
         "media"
-        if kind == "media_import"
+        if kind in {"media_import", "ugc_audio"}
         else "events"
         if kind in {"behavior", "sse", "feed_projection", "feed_asset_ready"}
         else "jobs"

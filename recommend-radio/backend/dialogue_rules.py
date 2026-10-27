@@ -762,6 +762,8 @@ def _is_recommendation_execution_request(text: str) -> bool:
     if _is_high_confidence_recommendation_command(normalized):
         return True
     if is_recommendation_request(normalized) and not _has_any(
+        normalized, RECOMMEND_DISCUSSION_PHRASES
+    ) and not _has_any(
         normalized,
         ("为什么", "为啥", "原因", "你觉得", "是不是", "哪个", "什么歌手", "哪种歌手"),
     ):

@@ -32,6 +32,8 @@ docker compose up -d --build
 
 ## 开发
 
+本地与 CI 共用 [质量门禁](doc/quality.md)：提交前执行快速钩子，PR 执行契约、前端与 Golden Set，main 增加真实服务验收。当前不自动发布。
+
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1

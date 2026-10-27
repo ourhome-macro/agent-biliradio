@@ -58,6 +58,6 @@ def test_upgrade_backfills_monotonic_watch_and_exposure_from_existing_events(tmp
             progress=conn.execute("SELECT * FROM feed_playback_progress").fetchone()
             assert progress["watch_ms"]==12000 and progress["buffering_ms"]==1000
             assert conn.execute("SELECT content_id FROM media_playbacks").fetchone()[0]==content
-            assert conn.execute("PRAGMA user_version").fetchone()[0]==33
+            assert conn.execute("PRAGMA user_version").fetchone()[0]==35
     finally:
         cache.close()

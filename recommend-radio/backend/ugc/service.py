@@ -25,6 +25,7 @@ class UGCService:
             "kind",
             "visibility",
             "mediaSourceContentId",
+            "audioUploadId",
         }:
             raise APIError.validation_error("Unsupported post fields")
         values = {
@@ -33,9 +34,10 @@ class UGCService:
             "body": old["body"] if old else "",
             "visibility": old["visibility"] if old else "private",
             "mediaSourceContentId": old["media_source_content_id"] if old else None,
+            "audioUploadId": old['audio_upload_id'] if old else None,
         }
         values.update({key: value for key, value in payload.items() if key != "expectedVersion"})
-        if values["kind"] not in ("text", "video") or values["visibility"] not in (
+        if values["kind"] not in ("text", "video", "audio") or values["visibility"] not in (
             "public",
             "private",
         ):
@@ -49,6 +51,11 @@ class UGCService:
         if not values["title"]:
             raise APIError.validation_error("Title is required")
         source = values["mediaSourceContentId"]
+        upload = values['audioUploadId']
+        if upload is not None and (not isinstance(upload, str) or not upload or len(upload) > 100):
+            raise APIError.validation_error('Invalid audio upload ID')
+        if upload and values['kind'] != 'audio' or source and values['kind'] != 'video':
+            raise APIError.validation_error('Media attachment does not match post kind')
         if source is not None and (not isinstance(source, str) or not source or len(source) > 100):
             raise APIError.validation_error("Invalid media source content ID")
         if values["kind"] == "text" and source:
@@ -56,6 +63,18 @@ class UGCService:
         return values
 
     def _media(self, conn, user, values, content_id, *, publish):
+        if values['kind'] == 'audio':
+            upload = conn.execute(
+                'SELECT u.*,a.manifest_json FROM ugc_audio_uploads u JOIN media_assets a '
+                'ON a.asset_id=u.asset_id WHERE u.upload_id=? AND u.user_id=? AND u.content_id=?',
+                (values['audioUploadId'], user, content_id),
+            ).fetchone() if values['audioUploadId'] else None
+            if values['audioUploadId'] and upload is None:
+                raise APIError.not_found('Audio upload not found')
+            if publish and (upload is None or upload['status'] != 'ready'):
+                raise APIError.conflict('Audio validation must finish before publication')
+            return {'assetId': upload['asset_id'], 'track': json.loads(upload['manifest_json'])} \
+                if upload else None
         source_id = values["mediaSourceContentId"]
         if not source_id:
             if publish and values["kind"] == "video":
@@ -152,6 +171,7 @@ class UGCService:
                 or old["visibility"] != values["visibility"]
                 or old["status"] != state
                 or old["media_source_content_id"] != values["mediaSourceContentId"]
+                or old['audio_upload_id'] != values['audioUploadId']
             )
             permission_version = (old["permission_version"] if old else 0) + int(permission_changed)
             published = (old["published_at"] if old else None) or (
@@ -171,7 +191,7 @@ class UGCService:
                 "ownerId": user_id,
                 "duration": media["track"].get("duration", 0) if media else 0,
                 "cover": "",
-                "typeName": "音乐" if values["kind"] == "video" else "文章",
+                "typeName": "音乐" if values["kind"] in {'video', 'audio'} else "文章",
             }
             scope = (
                 "public"
@@ -232,7 +252,9 @@ class UGCService:
                     ),
                 )
                 conn.execute(
-                    "INSERT INTO ugc_posts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO ugc_posts (content_id,author_id,kind,title,body,status,visibility,"
+                    "version,permission_version,media_source_content_id,media_asset_id,created_at,"
+                    "updated_at,published_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         identifier,
                         user_id,
@@ -254,6 +276,8 @@ class UGCService:
                     "INSERT INTO content_counters(content_id,updated_at) VALUES (?,?)",
                     (identifier, now),
                 )
+            conn.execute('UPDATE ugc_posts SET audio_upload_id=? WHERE content_id=?',
+                         (values['audioUploadId'], identifier))
             conn.execute("DELETE FROM content_media_links WHERE content_id=?", (identifier,))
             if media:
                 conn.execute(
@@ -319,6 +343,7 @@ class UGCService:
             "author": {"id": user_id, "name": account[0] if account and account[0] else user_id},
             "source": "ugc",
             "mediaSourceContentId": row["media_source_content_id"],
+            "audioUploadId": row['audio_upload_id'],
             "assetId": row["media_asset_id"],
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],

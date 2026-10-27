@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from uuid import uuid4
 
 import pymysql
 from sqlalchemy import URL
@@ -23,6 +24,31 @@ class NativeMySQL:
     def __init__(self, directory, *, binary=None):
         self.directory = Path(directory).resolve()
         self.directory.mkdir(parents=True, exist_ok=True)
+        self._closed = False
+        self.external = None
+        configured_admin = os.getenv("RADIO_TEST_MYSQL_ADMIN_URL")
+        if configured_admin:
+            from sqlalchemy.engine import make_url
+
+            target = make_url(configured_admin)
+            if target.host not in {"127.0.0.1", "localhost"} or target.port in {None, 3306, 3307}:
+                raise ValueError("Integration MySQL must be an explicit isolated loopback test port")
+            self.external = pymysql.connect(
+                host=target.host,
+                port=target.port,
+                user=target.username,
+                password=target.password,
+                autocommit=True,
+            )
+            self.schema = "radio_native_" + uuid4().hex
+            with self.external.cursor() as cursor:
+                cursor.execute(
+                    f"CREATE DATABASE `{self.schema}` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
+                )
+            self.url = SecretURL(
+                target.set(database=self.schema).render_as_string(hide_password=False)
+            )
+            return
         configured = binary or os.getenv("MYSQLD_PATH")
         self.binary = Path(configured) if configured else Path(tempfile.gettempdir()) / "radio-mysql-bin/mysql-8.4.9-winx64/bin/mysqld.exe"
         if not self.binary.is_file():
@@ -64,6 +90,17 @@ class NativeMySQL:
         raise TimeoutError("Isolated MySQL startup timed out")
 
     def close(self):
+        if self._closed:
+            return
+        if self.external is not None:
+            if not self.schema.startswith("radio_native_") or not self.schema[13:].isalnum():
+                raise RuntimeError("Refusing to clean an unowned test schema")
+            with self.external.cursor() as cursor:
+                cursor.execute(f"DROP DATABASE `{self.schema}`")
+            self.external.close()
+            self.external = None
+            self._closed = True
+            return
         if getattr(self, "process", None) and self.process.poll() is None:
             try:
                 connection = pymysql.connect(host="127.0.0.1", port=self.port, user="root",
@@ -75,3 +112,4 @@ class NativeMySQL:
                 self.process.terminate()
                 self.process.wait(timeout=10)
         self.log.close()
+        self._closed = True

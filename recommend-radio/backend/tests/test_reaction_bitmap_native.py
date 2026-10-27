@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -21,17 +20,16 @@ from mysql_storage.transfer import _row_hash
 from mysql_storage.upgrade import upgrade_mysql
 from redis_fixture import NativeRedis
 from redis_stream_jobs import RedisJobBus, RedisJobWorker
+from integration_settings import acceptance_settings
 
 
 @pytest.fixture(scope="module")
 def mysql(tmp_path_factory):
-    private = Path(__file__).resolve().parents[2] / "server-data/kafka-acceptance/private.env"
+    settings = acceptance_settings()
     instance, admin, name = None, None, None
-    if private.is_file():
-        from dotenv import dotenv_values
-
-        root = sa.engine.make_url(dotenv_values(private)["KAFKA_TEST_ROOT_DATABASE_URL"])
-        assert root.port not in {3306, 3307}
+    if settings is not None:
+        root = sa.engine.make_url(settings["KAFKA_TEST_ROOT_DATABASE_URL"])
+        assert root.host in {"127.0.0.1", "localhost"} and root.port not in {None, 3306, 3307}
         name = "radio_bitmap_" + uuid4().hex[:14]
         admin = engine_for(SecretURL(root.set(database=None).render_as_string(hide_password=False)))
         with admin.begin() as conn:
@@ -60,12 +58,10 @@ def mysql(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def redis_server(tmp_path_factory):
-    private = Path(__file__).resolve().parents[2] / "server-data/kafka-acceptance/private.env"
-    if private.is_file():
-        from dotenv import dotenv_values
+    values = acceptance_settings()
+    if values is not None:
         from redis import Redis
 
-        values = dotenv_values(private)
         url = values.get("KAFKA_TEST_REDIS_URL", "redis://127.0.0.1:16379/0")
         client = Redis.from_url(url, decode_responses=True)
         yield SimpleNamespace(url=url, client=client)

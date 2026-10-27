@@ -23,7 +23,11 @@ if hasattr(os, "register_at_fork"):
 
 
 def get_openai_client(
-    *, base_url: str, api_key_env: str, timeout_seconds: float, require_https: bool = True,
+    *,
+    base_url: str,
+    api_key_env: str,
+    timeout_seconds: float,
+    require_https: bool = True,
     api_key: str | None = None,
 ):
     if require_https and not base_url.startswith("https://"):
@@ -43,7 +47,9 @@ def get_openai_client(
             from openai import OpenAI
 
             # Every provider attempt is explicit and budgeted by its caller.
-            client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout_seconds, max_retries=0)
+            client = OpenAI(
+                base_url=base_url, api_key=api_key, timeout=timeout_seconds, max_retries=0
+            )
             _clients[key] = client
         return client
 

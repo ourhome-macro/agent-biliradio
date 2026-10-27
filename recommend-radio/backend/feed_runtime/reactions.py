@@ -49,9 +49,10 @@ class ReactionService:
             ).fetchone()
             if not content or (content["scope"] != "public" and content["owner_id"] != user_id):
                 raise APIError.not_found("Content not found")
-            begin_write(
-                conn, namespace="reaction-track", key=content["track_id"] or f"content:{content_id}"
-            )
+            if content["track_id"] is not None:
+                # Coordinate library aliases with admission; posts without a
+                # track have no aliases and need only the per-user command lock.
+                begin_write(conn, namespace="reaction-track", key=content["track_id"])
             if require_admitted and content["status"] != "admitted" and state != "neutral":
                 raise APIError.not_found("Content is unavailable")
             if require_admitted and state != "neutral":
@@ -148,12 +149,16 @@ class ReactionService:
                 "SELECT likes,dislikes,version FROM content_counters WHERE content_id=?",
                 (content_id,),
             ).fetchone()
-            aliases = conn.execute(
-                """SELECT c.content_id,r.state,r.version FROM feed_content c
+            aliases = (
+                conn.execute(
+                    """SELECT c.content_id,r.state,r.version FROM feed_content c
                 LEFT JOIN content_reactions r ON r.content_id=c.content_id AND r.user_id=?
                 WHERE c.track_id=? AND c.content_id<>? AND (c.scope='public' OR c.owner_id=?)""",
-                (user_id, content["track_id"], content_id, user_id),
-            ).fetchall()
+                    (user_id, content["track_id"], content_id, user_id),
+                ).fetchall()
+                if content["track_id"] is not None
+                else []
+            )
             for alias in aliases:
                 if (alias["state"] or "neutral") == state:
                     continue
@@ -237,15 +242,13 @@ class ReactionService:
         if payload["version"] > old_version:
             delta_like = int(payload["state"] == "like") - int(old_state == "like")
             delta_dislike = int(payload["state"] == "dislike") - int(old_state == "dislike")
-            conn.execute(
-                "INSERT OR IGNORE INTO content_counters(content_id,updated_at) VALUES (?,?)",
-                (content_id, time.time()),
-            )
-            conn.execute(
+            updated = conn.execute(
                 """UPDATE content_counters SET likes=likes+?,dislikes=dislikes+?,
                 version=version+1,updated_at=? WHERE content_id=?""",
                 (delta_like, delta_dislike, time.time(), content_id),
             )
+            if not updated.rowcount:
+                raise ValueError("Missing authoritative content counter; reconciliation required")
             conn.execute(
                 """INSERT INTO reaction_projection VALUES (?,?,?,?) ON CONFLICT(user_id,content_id)
                 DO UPDATE SET state=excluded.state,version=excluded.version""",
@@ -282,6 +285,31 @@ class ReactionService:
             )
         count("projection")
         return counter
+
+    def project_many(self, payloads, *, guard=None):
+        from .projection_jobs import user_bitmap_ids
+        from .projection_sql import MAX_BATCH, apply_many, validate
+
+        if not payloads or len(payloads) > MAX_BATCH:
+            raise ValueError("A bounded nonempty projection batch is required")
+        for value in payloads:
+            validate(value)
+        mappings = user_bitmap_ids(self.repo.db_path, {p["user_id"] for p in payloads})
+        with get_connection(self.repo.db_path) as conn:
+            if getattr(conn, "dialect", None) != "mysql" and not conn.in_transaction:
+                conn.execute("BEGIN IMMEDIATE")
+            if guard:
+                guard(conn)
+            result = apply_many(conn, payloads, begin_write)
+            if guard:
+                guard(conn)
+        for value in result["relations"]:
+            value["bitmap_id"] = mappings[value["user_id"]]
+        if self.cache:
+            self.cache.publish_projection_batch(result["counters"], result["relations"])
+        count("projection_batch", "events", result["events"])
+        count("projection_batch", "coalesced", result["coalesced"])
+        return result
 
     def rebuild(self):
         with get_connection(self.repo.db_path) as conn:

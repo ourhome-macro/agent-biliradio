@@ -1,0 +1,158 @@
+{
+  "scope": "isolated native Redis, two cache instances, synthetic 8ms origin; not full Feed HTTP throughput or recommendation quality",
+  "samples": [
+    {
+      "arm": "A_request_refresh",
+      "seed": 0,
+      "offeredRequestsPerSecond": 240,
+      "requests": 1920,
+      "errors": 0,
+      "elapsedSeconds": 7.998,
+      "throughput": 240.06,
+      "p50Ms": 0.054,
+      "p95Ms": 1.157,
+      "p99Ms": 11.185,
+      "scheduledResponseP95Ms": 1.811,
+      "foregroundPathLoads": 97,
+      "proactiveLoads": 0,
+      "totalLoads": 97,
+      "hotMembers": []
+    },
+    {
+      "arm": "B_hotkeys",
+      "seed": 0,
+      "offeredRequestsPerSecond": 240,
+      "requests": 1920,
+      "errors": 0,
+      "elapsedSeconds": 7.999,
+      "throughput": 240.02,
+      "p50Ms": 0.068,
+      "p95Ms": 1.462,
+      "p99Ms": 11.514,
+      "scheduledResponseP95Ms": 2.289,
+      "foregroundPathLoads": 87,
+      "proactiveLoads": 16,
+      "totalLoads": 103,
+      "hotMembers": [
+        "hot"
+      ]
+    },
+    {
+      "arm": "B_hotkeys",
+      "seed": 1,
+      "offeredRequestsPerSecond": 240,
+      "requests": 1920,
+      "errors": 0,
+      "elapsedSeconds": 7.998,
+      "throughput": 240.07,
+      "p50Ms": 0.063,
+      "p95Ms": 1.261,
+      "p99Ms": 10.675,
+      "scheduledResponseP95Ms": 2.104,
+      "foregroundPathLoads": 87,
+      "proactiveLoads": 16,
+      "totalLoads": 103,
+      "hotMembers": [
+        "hot"
+      ]
+    },
+    {
+      "arm": "A_request_refresh",
+      "seed": 1,
+      "offeredRequestsPerSecond": 240,
+      "requests": 1920,
+      "errors": 0,
+      "elapsedSeconds": 7.999,
+      "throughput": 240.03,
+      "p50Ms": 0.057,
+      "p95Ms": 1.387,
+      "p99Ms": 11.688,
+      "scheduledResponseP95Ms": 1.96,
+      "foregroundPathLoads": 98,
+      "proactiveLoads": 0,
+      "totalLoads": 98,
+      "hotMembers": []
+    },
+    {
+      "arm": "A_request_refresh",
+      "seed": 2,
+      "offeredRequestsPerSecond": 240,
+      "requests": 1920,
+      "errors": 0,
+      "elapsedSeconds": 7.998,
+      "throughput": 240.06,
+      "p50Ms": 0.057,
+      "p95Ms": 1.528,
+      "p99Ms": 12.184,
+      "scheduledResponseP95Ms": 2.077,
+      "foregroundPathLoads": 102,
+      "proactiveLoads": 0,
+      "totalLoads": 102,
+      "hotMembers": []
+    },
+    {
+      "arm": "B_hotkeys",
+      "seed": 2,
+      "offeredRequestsPerSecond": 240,
+      "requests": 1920,
+      "errors": 0,
+      "elapsedSeconds": 8.001,
+      "throughput": 239.98,
+      "p50Ms": 0.064,
+      "p95Ms": 1.218,
+      "p99Ms": 11.134,
+      "scheduledResponseP95Ms": 1.843,
+      "foregroundPathLoads": 91,
+      "proactiveLoads": 16,
+      "totalLoads": 107,
+      "hotMembers": [
+        "hot"
+      ]
+    },
+    {
+      "arm": "B_hotkeys",
+      "seed": 3,
+      "offeredRequestsPerSecond": 1200,
+      "requests": 7200,
+      "errors": 0,
+      "elapsedSeconds": 6.002,
+      "throughput": 1199.6,
+      "p50Ms": 0.035,
+      "p95Ms": 0.876,
+      "p99Ms": 3.247,
+      "scheduledResponseP95Ms": 1.624,
+      "foregroundPathLoads": 87,
+      "proactiveLoads": 23,
+      "totalLoads": 110,
+      "hotMembers": [
+        "hot",
+        "cold6",
+        "cold5"
+      ]
+    },
+    {
+      "arm": "A_request_refresh",
+      "seed": 3,
+      "offeredRequestsPerSecond": 1200,
+      "requests": 7200,
+      "errors": 0,
+      "elapsedSeconds": 6.002,
+      "throughput": 1199.5,
+      "p50Ms": 0.036,
+      "p95Ms": 1.203,
+      "p99Ms": 7.272,
+      "scheduledResponseP95Ms": 2.198,
+      "foregroundPathLoads": 101,
+      "proactiveLoads": 0,
+      "totalLoads": 101,
+      "hotMembers": []
+    }
+  ],
+  "faults": {
+    "nativeLeaseExpiryAndFencing": true,
+    "nativeRedisTermination": true,
+    "boundedOutageFallback": true,
+    "workerProcessKilled": true,
+    "redisRestartRecoveredSchedule": true
+  }
+}

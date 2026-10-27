@@ -54,7 +54,7 @@ def register_feed(app, *, music_services_factory):
         if not feed_enabled():
             return Result.ok({"enabled": False}).json()
         status = services().health()
-        return Result.ok(status).json_with_status(200 if all(status.values()) else 503)
+        return Result.ok(status).json_with_status(200 if status['ready'] else 503)
 
     @blueprint.post("/api/feed/sessions")
     def create_feed():

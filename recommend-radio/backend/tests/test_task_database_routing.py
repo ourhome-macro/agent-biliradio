@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from database import get_connection, init_db
-from durable_jobs import enqueue
+from durable_jobs import enqueue,claim
 from feed_runtime.reactions import ReactionService
 from feed_runtime.repository import FeedRepository
 from kafka_transport import KafkaSettings
@@ -48,6 +48,8 @@ def test_projection_executes_in_validated_database_not_default(databases, monkey
         job = dict(
             connection.execute("SELECT * FROM durable_jobs WHERE kind='feed_projection'").fetchone()
         )
+    with get_connection(first) as connection:
+        job = claim(connection,job['job_id'])
     task_app.dispatch(job, db_path=first)
     with get_connection(first) as connection:
         assert (
